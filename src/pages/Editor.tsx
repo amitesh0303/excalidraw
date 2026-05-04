@@ -1164,8 +1164,8 @@ export default function Editor() {
             fillStyle,
             roundness,
             points: currentTool === 'freedraw' ? [[x, y]] : undefined,
-            frameName: currentTool === 'frame' ? frameName : undefined,
-            embedUrl: currentTool === 'webembed' ? embedUrl : undefined,
+            frameName: (currentTool as any) === 'frame' ? frameName : undefined,
+            embedUrl: (currentTool as any) === 'webembed' ? embedUrl : undefined,
         }
 
         setCurrentElement({ ...newElement, id: 'temp', seed: Math.floor(Math.random() * 100000) } as CanvasElement)
