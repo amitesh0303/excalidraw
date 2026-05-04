@@ -960,6 +960,8 @@ a {
   border: 1px solid rgba(255,255,255,0.08);
   box-shadow: 0 18px 44px rgba(0,0,0,0.24);
   z-index: 50;
+  transition: width var(--transition-normal), padding var(--transition-normal);
+  overflow: hidden;
 }
 
 .excalidraw-sidebar.left { left: 14px; }

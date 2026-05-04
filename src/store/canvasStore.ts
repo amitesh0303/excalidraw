@@ -97,7 +97,7 @@ interface CanvasState {
 }
 
 const DEFAULT_COLORS = {
-    stroke: '#ffffff',
+    stroke: '#1e1e1e',
     fill: 'transparent',
 }
 

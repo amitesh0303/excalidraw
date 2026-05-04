@@ -145,8 +145,9 @@ export default function Editor() {
     const { getScene, updateScene, deleteScene } = useScenes()
     const [sceneName, setSceneName] = useState('Untitled')
     const [isEditingName, setIsEditingName] = useState(false)
-    const [canvasBg, setCanvasBg] = useState('#121212')
+    const [canvasBg, setCanvasBg] = useState('#ffffff')
     const [showMenu, setShowMenu] = useState(false)
+    const [sidebarMinimized, setSidebarMinimized] = useState(false)
     const [spacePressed, setSpacePressed] = useState(false)
     const [darkMode, setDarkMode] = useState(true)
 
@@ -1472,7 +1473,7 @@ export default function Editor() {
         <div className="excalidraw-editor">
             {/* Top Toolbar - Excalidraw style */}
             <div className="excalidraw-toolbar">
-                {/* Left: Logo & Menu */}
+                {/* Left: Logo & Menu + Utilities */}
                 <div className="toolbar-section toolbar-left">
                     <button className="toolbar-btn menu-btn" onClick={() => setShowMenu(!showMenu)}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1481,6 +1482,60 @@ export default function Editor() {
                             <line x1="3" y1="18" x2="21" y2="18" />
                         </svg>
                     </button>
+
+                    {/* Utility Buttons */}
+                    <div style={{ display: 'flex', gap: '4px', marginLeft: '8px', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '8px' }}>
+                        {/* Library Button */}
+                        <button
+                            className="toolbar-btn"
+                            onClick={() => setLibraryDialog(true)}
+                            title="Shape Library"
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5V4.5A2.5 2.5 0 0 1 6.5 2z" />
+                            </svg>
+                        </button>
+
+                        {/* Image Upload Button */}
+                        <button
+                            className="toolbar-btn"
+                            onClick={() => imageInputRef.current?.click()}
+                            title="Insert Image"
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                <circle cx="8.5" cy="8.5" r="1.5" />
+                                <polyline points="21,15 16,10 5,21" />
+                            </svg>
+                        </button>
+
+                        {/* Find Button */}
+                        <button
+                            className="toolbar-btn"
+                            onClick={() => setFindDialog(true)}
+                            title="Find (Ctrl+F)"
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <circle cx="11" cy="11" r="8" />
+                                <path d="m21 21-4.35-4.35" />
+                            </svg>
+                        </button>
+
+                        {/* Command Palette Button */}
+                        <button
+                            className="toolbar-btn"
+                            onClick={() => setCommandPalette(true)}
+                            title="Command Palette (Ctrl+/)"
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="12 3 20 7.5 20 16.5 12 21 4 16.5 4 7.5 12 3" />
+                                <line x1="12" y1="12" x2="20" y2="7.5" />
+                                <line x1="12" y1="12" x2="12" y2="21" />
+                                <line x1="12" y1="12" x2="4" y2="7.5" />
+                            </svg>
+                        </button>
+                    </div>
 
                     {showMenu && (
                         <div className="dropdown-menu toolbar-dropdown">
@@ -1641,61 +1696,6 @@ export default function Editor() {
                                 )}
                             </svg>
                         </button>
-
-                        {/* Image Upload Button */}
-                        <button
-                            className="tool-btn"
-                            onClick={() => imageInputRef.current?.click()}
-                            title="Insert Image"
-                            style={{ marginLeft: '4px' }}
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                                <circle cx="8.5" cy="8.5" r="1.5" />
-                                <polyline points="21,15 16,10 5,21" />
-                            </svg>
-                        </button>
-
-                        {/* Library Button */}
-                        <button
-                            className="tool-btn"
-                            onClick={() => setLibraryDialog(true)}
-                            title="Shape Library"
-                            style={{ marginLeft: '4px' }}
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5V4.5A2.5 2.5 0 0 1 6.5 2z" />
-                            </svg>
-                        </button>
-
-                        {/* Find Button */}
-                        <button
-                            className="tool-btn"
-                            onClick={() => setFindDialog(true)}
-                            title="Find (Ctrl+F)"
-                            style={{ marginLeft: '4px' }}
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <circle cx="11" cy="11" r="8" />
-                                <path d="m21 21-4.35-4.35" />
-                            </svg>
-                        </button>
-
-                        {/* Command Palette Button */}
-                        <button
-                            className="tool-btn"
-                            onClick={() => setCommandPalette(true)}
-                            title="Command Palette (Ctrl+/)"
-                            style={{ marginLeft: '4px' }}
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <polyline points="12 3 20 7.5 20 16.5 12 21 4 16.5 4 7.5 12 3" />
-                                <line x1="12" y1="12" x2="20" y2="7.5" />
-                                <line x1="12" y1="12" x2="12" y2="21" />
-                                <line x1="12" y1="12" x2="4" y2="7.5" />
-                            </svg>
-                        </button>
                     </div>
                 </div>
 
@@ -1761,7 +1761,27 @@ export default function Editor() {
             </div>
 
             {/* Left Sidebar - Properties */}
-            <div className="excalidraw-sidebar left" style={{ maxHeight: 'calc(100vh - 80px)', overflowY: 'auto' }}>
+            <div className="excalidraw-sidebar left" style={{ maxHeight: 'calc(100vh - 80px)', overflowY: 'auto', width: sidebarMinimized ? '50px' : '230px' }}>
+                {/* Minimize Button */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                    <button 
+                        className="toolbar-btn" 
+                        onClick={() => setSidebarMinimized(!sidebarMinimized)}
+                        title={sidebarMinimized ? "Expand sidebar" : "Minimize sidebar"}
+                        style={{ width: '32px', height: '32px' }}
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            {sidebarMinimized ? (
+                                // Expand icon (chevron right)
+                                <path d="M9 18l6-6-6-6" />
+                            ) : (
+                                // Minimize icon (chevron left)
+                                <path d="M15 18l-6-6 6-6" />
+                            )}
+                        </svg>
+                    </button>
+                </div>
+                {!sidebarMinimized && (<>
                 <div className="sidebar-section">
                     <div className="section-title">Stroke</div>
                     <div className="color-picker">
@@ -2021,6 +2041,7 @@ export default function Editor() {
                         ))}
                     </div>
                 </div>
+                </>)}
             </div>
 
             {/* Canvas */}
