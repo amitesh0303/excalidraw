@@ -2190,7 +2190,12 @@ export default function Editor() {
             {contextMenu && createPortal(
                 <div
                     className="context-menu"
-                    style={{ left: contextMenu.x, top: contextMenu.y }}
+                    style={{
+                        left: Math.max(8, Math.min(contextMenu.x, window.innerWidth - 220)),
+                        top: Math.max(8, Math.min(contextMenu.y, window.innerHeight - 500)),
+                        maxHeight: window.innerHeight - Math.max(8, Math.min(contextMenu.y, window.innerHeight - 500)) - 16,
+                        overflowY: 'auto',
+                    }}
                     onMouseDown={(e) => e.stopPropagation()}
                 >
                     <button className="dropdown-item" onClick={() => { cutSelected(); setContextMenu(null); }} disabled={selectedElementIds.length === 0}>
@@ -2335,13 +2340,24 @@ export default function Editor() {
 
             {/* Command Palette */}
             {commandPalette && createPortal(
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10002, paddingTop: '100px' }}>
-                    <div style={{ background: '#1e1e1e', borderRadius: '8px', width: '90%', maxWidth: '500px', border: '1px solid rgba(255,255,255,0.2)', maxHeight: '400px', overflowY: 'auto' }}>
+                <div 
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10002, paddingTop: '100px' }}
+                    onClick={() => setCommandPalette(false)}
+                >
+                    <div 
+                        style={{ background: '#1e1e1e', borderRadius: '8px', width: '90%', maxWidth: '500px', border: '1px solid rgba(255,255,255,0.2)', maxHeight: '400px', overflowY: 'auto' }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <div style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                             <input
                                 type="text"
                                 placeholder="Search commands..."
                                 autoFocus
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                        setCommandPalette(false)
+                                    }
+                                }}
                                 style={{ width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: '#fff', outline: 'none' }}
                             />
                         </div>
