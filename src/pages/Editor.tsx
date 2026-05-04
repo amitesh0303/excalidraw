@@ -635,7 +635,7 @@ export default function Editor() {
                         ctx.setLineDash([])
                     }
                     break
-                case 'text':
+                case 'text': {
                     ctx.font = `${element.fontSize || 20}px "Segoe UI", system-ui, sans-serif`
                     ctx.fillStyle = element.strokeColor
                     ctx.textBaseline = 'top'
@@ -644,6 +644,7 @@ export default function Editor() {
                         ctx.fillText(line, element.x, element.y + i * (element.fontSize || 20) * 1.2)
                     })
                     break
+                }
                 case 'image':
                     if (element.imageData) {
                         const img = new Image()
@@ -907,7 +908,7 @@ export default function Editor() {
         const D = y2 - y1
         const dot = A * C + B * D
         const lenSq = C * C + D * D
-        let t = lenSq !== 0 ? Math.max(0, Math.min(1, dot / lenSq)) : 0
+        const t = lenSq !== 0 ? Math.max(0, Math.min(1, dot / lenSq)) : 0
         const nearX = x1 + t * C
         const nearY = y1 + t * D
         return Math.sqrt((px - nearX) ** 2 + (py - nearY) ** 2)
