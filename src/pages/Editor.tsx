@@ -138,54 +138,17 @@ export default function Editor() {
     const navigate = useNavigate()
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
+    const imageInputRef = useRef<HTMLInputElement>(null)
+    const textInputRef = useRef<HTMLTextAreaElement>(null)
 
-    const exportScene = useCanvasStore(state => state.exportScene)
-
-    // Image upload handler
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
-
-        const reader = new FileReader()
-        reader.onload = (event) => {
-            const imageData = event.target?.result as string
-            addElement({
-                type: 'image',
-                x: 100,
-                y: 100,
-                width: 200,
-                height: 200,
-                strokeColor: '#000000',
-                fillColor: 'transparent',
-                strokeWidth: 2,
-                opacity: 1,
-                roughness: 0,
-                imageData,
-            })
-            saveToHistory()
-        }
-        reader.readAsDataURL(file)
-    }
-
-    // Link dialog handler
-    const handleSaveLink = (link: string) => {
-        if (linkDialog) {
-            updateElement(linkDialog.elementId, { link })
-            saveToHistory()
-            setLinkDialog(null)
-        }
-    }
-
-    // Find on canvas
-    const findElements = useCallback(() => {
-        if (!searchText.trim()) return []
-        return elements.filter(el =>
-            el.type === 'text' && el.text?.toLowerCase().includes(searchText.toLowerCase())
-        )
-    }, [elements, searchText])
-
-    // Export scene wrapper
-    const getExportedScene = () => exportScene()
+    // Scene management
+    const { getScene, updateScene, deleteScene } = useScenes()
+    const [sceneName, setSceneName] = useState('Untitled')
+    const [isEditingName, setIsEditingName] = useState(false)
+    const [canvasBg, setCanvasBg] = useState('#121212')
+    const [showMenu, setShowMenu] = useState(false)
+    const [spacePressed, setSpacePressed] = useState(false)
+    const [darkMode, setDarkMode] = useState(true)
 
     // Canvas store
     const {
@@ -295,6 +258,54 @@ export default function Editor() {
             zoom
         })
     }, [elements, scrollX, scrollY, zoom])
+
+    // Handler functions
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        const reader = new FileReader()
+        reader.onload = (event) => {
+            const imageData = event.target?.result as string
+            addElement({
+                type: 'image',
+                x: 100,
+                y: 100,
+                width: 200,
+                height: 200,
+                strokeColor: '#000000',
+                fillColor: 'transparent',
+                strokeWidth: 2,
+                opacity: 1,
+                roughness: 0,
+                imageData,
+            })
+            saveToHistory()
+        }
+        reader.readAsDataURL(file)
+    }
+
+    const handleSaveLink = (link: string) => {
+        if (linkDialog) {
+            updateElement(linkDialog.elementId, { link })
+            saveToHistory()
+            setLinkDialog(null)
+        }
+    }
+
+    const findElements = useCallback(() => {
+        if (!searchText.trim()) return []
+        return elements.filter(el =>
+            el.type === 'text' && el.text?.toLowerCase().includes(searchText.toLowerCase())
+        )
+    }, [elements, searchText])
+
+    const getElementBounds = (element: CanvasElement) => ({
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+    })
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -917,7 +928,7 @@ export default function Editor() {
     }
 
     // Get bounding box of polygon
-    const getPolygonBounds = (polygon: number[][]): Bounds => {
+    const getPolygonBounds = (polygon: number[][]): { x: number; y: number; width: number; height: number } => {
         const xs = polygon.map(p => p[0])
         const ys = polygon.map(p => p[1])
         return {
@@ -1143,7 +1154,7 @@ export default function Editor() {
         setStartPos({ x, y })
 
         const newElement: Omit<CanvasElement, 'id' | 'seed'> = {
-            type: currentTool as CanvasElement['type'],
+            type: currentTool as any,
             x, y,
             width: 0,
             height: 0,
