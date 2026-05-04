@@ -189,7 +189,6 @@ export default function Editor() {
     // Text input state - stores SCREEN coordinates for positioning the input
     const [textInput, setTextInput] = useState<{ x: number; y: number; canvasX: number; canvasY: number; visible: boolean }>({ x: 0, y: 0, canvasX: 0, canvasY: 0, visible: false })
     const [textValue, setTextValue] = useState('')
-    const textInputRef = useRef<HTMLTextAreaElement>(null)
 
     // Keep selected tool after drawing (like Excalidraw's lock mode)
     const [keepSelectedTool, setKeepSelectedTool] = useState(false)
@@ -214,7 +213,6 @@ export default function Editor() {
     const [webembedDialog, setWebembedDialog] = useState(false)
     const [embedUrl, setEmbedUrl] = useState('')
     const [laserPoints, setLaserPoints] = useState<number[][]>([])
-    const imageInputRef = useRef<HTMLInputElement>(null)
 
     // Load scene on mount
     useEffect(() => {
@@ -927,32 +925,6 @@ export default function Editor() {
         return inside
     }
 
-    // Get bounding box of polygon
-    const getPolygonBounds = (polygon: number[][]): { x: number; y: number; width: number; height: number } => {
-        const xs = polygon.map(p => p[0])
-        const ys = polygon.map(p => p[1])
-        return {
-            x: Math.min(...xs),
-            y: Math.min(...ys),
-            width: Math.max(...xs) - Math.min(...xs),
-            height: Math.max(...ys) - Math.min(...ys),
-        }
-    }
-
-    // Distance from point to line segment
-    const distToSegment = (px: number, py: number, x1: number, y1: number, x2: number, y2: number) => {
-        const A = px - x1
-        const B = py - y1
-        const C = x2 - x1
-        const D = y2 - y1
-        const dot = A * C + B * D
-        const lenSq = C * C + D * D
-        let t = lenSq !== 0 ? Math.max(0, Math.min(1, dot / lenSq)) : 0
-        const nearX = x1 + t * C
-        const nearY = y1 + t * D
-        return Math.sqrt((px - nearX) ** 2 + (py - nearY) ** 2)
-    }
-
     // Find a container shape (rectangle, ellipse, diamond) at a point
     const findContainerAtPoint = (x: number, y: number): CanvasElement | null => {
         for (let i = elements.length - 1; i >= 0; i--) {
@@ -1037,8 +1009,6 @@ export default function Editor() {
 
         // Handle laser pointer - temporary drawing
         if (currentTool === 'laser') {
-            const screenX = e.clientX
-            const screenY = e.clientY
             setLaserPoints([[x, y]])
             // Laser pointer will fade out after 2 seconds
             setTimeout(() => setLaserPoints([]), 2000)
