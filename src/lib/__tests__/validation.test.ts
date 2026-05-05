@@ -24,6 +24,10 @@ describe('validation', () => {
       expect(() => validateInput(sceneNameSchema, '')).toThrow('Scene name is required')
     })
 
+    it('should reject whitespace-only names', () => {
+      expect(() => validateInput(sceneNameSchema, '   ')).toThrow('Scene name is required')
+    })
+
     it('should reject names that are too long', () => {
       const longName = 'a'.repeat(101)
       expect(() => validateInput(sceneNameSchema, longName)).toThrow('must be less than 100 characters')
@@ -50,6 +54,10 @@ describe('validation', () => {
 
     it('should reject empty names', () => {
       expect(() => validateInput(folderNameSchema, '')).toThrow('Folder name is required')
+    })
+
+    it('should reject whitespace-only names', () => {
+      expect(() => validateInput(folderNameSchema, '\t  \n')).toThrow('Folder name is required')
     })
 
     it('should reject names that are too long', () => {

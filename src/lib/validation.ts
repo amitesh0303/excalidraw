@@ -7,25 +7,26 @@ import { z } from 'zod'
 
 // Scene name validation
 export const sceneNameSchema = z.string()
+  .trim()
   .min(1, 'Scene name is required')
   .max(100, 'Scene name must be less than 100 characters')
   .regex(/^[a-zA-Z0-9\s\-_.,!?()]+$/, 'Scene name contains invalid characters')
-  .transform(name => name.trim())
 
 // Folder name validation
 export const folderNameSchema = z.string()
+  .trim()
   .min(1, 'Folder name is required')
   .max(50, 'Folder name must be less than 50 characters')
   .regex(/^[a-zA-Z0-9\s\-_]+$/, 'Folder name contains invalid characters')
-  .transform(name => name.trim())
 
 // Text content validation (for canvas text elements)
 export const textContentSchema = z.string()
+  .trim()
   .max(5000, 'Text content is too long')
-  .transform(text => text.trim())
 
 // Email validation
 export const emailSchema = z.string()
+  .trim()
   .email('Invalid email address')
   .toLowerCase()
 
