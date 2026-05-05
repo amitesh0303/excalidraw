@@ -188,7 +188,15 @@ export default function Editor() {
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
 
     // Text input state - stores SCREEN coordinates for positioning the input
-    const [textInput, setTextInput] = useState<{ x: number; y: number; canvasX: number; canvasY: number; visible: boolean }>({ x: 0, y: 0, canvasX: 0, canvasY: 0, visible: false })
+    const [textInput, setTextInput] = useState<{
+        x: number
+        y: number
+        canvasX: number
+        canvasY: number
+        visible: boolean
+        containerId?: string
+        editingTextId?: string
+    }>({ x: 0, y: 0, canvasX: 0, canvasY: 0, visible: false })
     const [textValue, setTextValue] = useState('')
 
     // Keep selected tool after drawing (like Excalidraw's lock mode)
@@ -856,6 +864,83 @@ export default function Editor() {
         }
     }
 
+    const getScreenCoords = (canvasX: number, canvasY: number) => {
+        const canvas = canvasRef.current
+        if (!canvas) return { x: canvasX, y: canvasY }
+        const rect = canvas.getBoundingClientRect()
+        return {
+            x: rect.left + canvasX * zoom + scrollX,
+            y: rect.top + canvasY * zoom + scrollY,
+        }
+    }
+
+    const openTextInput = ({
+        canvasX,
+        canvasY,
+        initialValue = '',
+        containerId,
+        editingTextId,
+    }: {
+        canvasX: number
+        canvasY: number
+        initialValue?: string
+        containerId?: string
+        editingTextId?: string
+    }) => {
+        const screenCoords = getScreenCoords(canvasX, canvasY)
+        textInputCreatedAt.current = Date.now()
+        textJustSaved.current = false
+        setTextInput({
+            x: screenCoords.x,
+            y: screenCoords.y,
+            canvasX,
+            canvasY,
+            visible: true,
+            containerId,
+            editingTextId,
+        })
+        setTextValue(initialValue)
+        setTimeout(() => textInputRef.current?.focus(), 50)
+    }
+
+    const commitTextInput = () => {
+        const trimmedText = textValue.trim()
+
+        if (trimmedText) {
+            if (textInput.editingTextId) {
+                updateElement(textInput.editingTextId, {
+                    text: trimmedText,
+                    width: trimmedText.length * 10,
+                    height: 24,
+                })
+            } else {
+                addElement({
+                    type: 'text',
+                    x: textInput.canvasX,
+                    y: textInput.canvasY,
+                    width: trimmedText.length * 10,
+                    height: 24,
+                    strokeColor,
+                    fillColor,
+                    strokeWidth,
+                    opacity: 1,
+                    roughness: 1,
+                    text: trimmedText,
+                    fontSize: 20,
+                    containerId: textInput.containerId,
+                })
+            }
+            saveToHistory()
+        } else if (textInput.editingTextId) {
+            deleteElements([textInput.editingTextId])
+        }
+
+        setTextInput({ x: 0, y: 0, canvasX: 0, canvasY: 0, visible: false })
+        setTextValue('')
+        textJustSaved.current = true
+        if (!keepSelectedTool) setTool('select')
+    }
+
     // Find element at point with better hit detection
     const findElementAtPoint = (x: number, y: number): CanvasElement | null => {
         for (let i = elements.length - 1; i >= 0; i--) {
@@ -1019,32 +1104,17 @@ export default function Editor() {
 
         // Handle text tool FIRST before any other checks
         if (currentTool === 'text') {
-            const screenX = e.clientX
-            const screenY = e.clientY
-
             // If there's already a visible text input, save its content first
-            if (textInput.visible && textValue.trim()) {
-                const container = findContainerAtPoint(textInput.canvasX, textInput.canvasY)
-                addElement({
-                    type: 'text',
-                    x: textInput.canvasX,
-                    y: textInput.canvasY,
-                    width: textValue.length * 10,
-                    height: 24,
-                    strokeColor, fillColor, strokeWidth, opacity: 1,
-                    roughness: 1,
-                    text: textValue.trim(),
-                    fontSize: 20,
-                    containerId: container?.id,
-                })
-                saveToHistory()
-                textJustSaved.current = true
+            if (textInput.visible) {
+                commitTextInput()
             }
 
-            textInputCreatedAt.current = Date.now()
-            setTextInput({ x: screenX, y: screenY, canvasX: x, canvasY: y, visible: true })
-            setTextValue('')
-            setTimeout(() => textInputRef.current?.focus(), 50)
+            const container = findContainerAtPoint(x, y)
+            openTextInput({
+                canvasX: x,
+                canvasY: y,
+                containerId: container?.id,
+            })
             return
         }
 
@@ -1070,6 +1140,27 @@ export default function Editor() {
 
             const element = findElementAtPoint(x, y)
             if (element) {
+                const supportsInlineText =
+                    element.type === 'text' ||
+                    element.type === 'rectangle' ||
+                    element.type === 'ellipse' ||
+                    element.type === 'diamond'
+
+                if (e.detail === 2 && supportsInlineText) {
+                    const existingBoundText = element.type === 'text'
+                        ? element
+                        : elements.find((boundEl) => boundEl.containerId === element.id && boundEl.type === 'text')
+
+                    openTextInput({
+                        canvasX: element.x + element.width / 2,
+                        canvasY: element.y + element.height / 2,
+                        initialValue: existingBoundText?.text || '',
+                        containerId: element.type === 'text' ? element.containerId : element.id,
+                        editingTextId: existingBoundText?.id || (element.type === 'text' ? element.id : undefined),
+                    })
+                    return
+                }
+
                 if (e.shiftKey) {
                     // Multi-select with Shift+Click
                     toggleSelectElement(element.id)
@@ -2073,7 +2164,7 @@ export default function Editor() {
                         left: `${textInput.x}px`,
                         top: `${textInput.y}px`,
                         zIndex: 10000,
-                        background: 'rgba(0,0,0,0.8)',
+                            background: 'transparent',
                         border: '2px solid #6965db',
                         borderRadius: '4px',
                         outline: 'none',
@@ -2093,25 +2184,7 @@ export default function Editor() {
                         e.stopPropagation()
                         if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault()
-                            if (textValue.trim()) {
-                                const container = findContainerAtPoint(textInput.canvasX, textInput.canvasY)
-                                addElement({
-                                    type: 'text',
-                                    x: textInput.canvasX,
-                                    y: textInput.canvasY,
-                                    width: textValue.length * 10,
-                                    height: 24,
-                                    strokeColor, fillColor, strokeWidth, opacity: 1,
-                                    roughness: 1,
-                                    text: textValue.trim(),
-                                    fontSize: 20,
-                                    containerId: container?.id,
-                                })
-                                saveToHistory()
-                            }
-                            setTextInput({ ...textInput, visible: false })
-                            setTextValue('')
-                            if (!keepSelectedTool) setTool('select')
+                            commitTextInput()
                         }
                         if (e.key === 'Escape') {
                             setTextInput({ ...textInput, visible: false })
@@ -2130,25 +2203,7 @@ export default function Editor() {
                             textJustSaved.current = false
                             return
                         }
-                        if (textValue.trim()) {
-                            const container = findContainerAtPoint(textInput.canvasX, textInput.canvasY)
-                            addElement({
-                                type: 'text',
-                                x: textInput.canvasX,
-                                y: textInput.canvasY,
-                                width: textValue.length * 10,
-                                height: 24,
-                                strokeColor, fillColor, strokeWidth, opacity: 1,
-                                roughness: 1,
-                                text: textValue.trim(),
-                                fontSize: 20,
-                                containerId: container?.id,
-                            })
-                            saveToHistory()
-                            if (!keepSelectedTool) setTool('select')
-                        }
-                        setTextInput({ ...textInput, visible: false })
-                        setTextValue('')
+                        commitTextInput()
                     }}
                 />,
                 document.body
