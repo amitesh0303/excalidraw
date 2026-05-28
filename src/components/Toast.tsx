@@ -24,13 +24,22 @@ export function useToast() {
   return ctx
 }
 
+const MAX_VISIBLE_TOASTS = 5
+
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const idCounter = useRef(0)
 
   const addToast = useCallback((message: string, type: ToastType = 'info', duration = 4000) => {
     const id = `toast-${++idCounter.current}`
-    setToasts(prev => [...prev, { id, message, type, duration }])
+    setToasts(prev => {
+      const next = [...prev, { id, message, type, duration }]
+      // Dismiss oldest toasts if exceeding the cap
+      if (next.length > MAX_VISIBLE_TOASTS) {
+        return next.slice(next.length - MAX_VISIBLE_TOASTS)
+      }
+      return next
+    })
   }, [])
 
   const removeToast = useCallback((id: string) => {

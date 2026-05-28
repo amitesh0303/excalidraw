@@ -7,9 +7,9 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 
 export type AutoSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
-export interface UseAutoSaveOptions {
+export interface UseAutoSaveOptions<T> {
   delay?: number
-  onSave: (data: any) => Promise<void>
+  onSave: (data: T) => Promise<void>
   onError?: (error: Error) => void
 }
 
@@ -20,7 +20,7 @@ export interface UseAutoSaveOptions {
  */
 export function useAutoSave<T>(
   data: T,
-  options: UseAutoSaveOptions
+  options: UseAutoSaveOptions<T>
 ) {
   const { delay = 2000, onSave, onError } = options
   
@@ -30,6 +30,7 @@ export function useAutoSave<T>(
   const pendingDataRef = useRef<T | null>(null)
   const [status, setStatus] = useState<AutoSaveStatus>('idle')
   const savedTimerRef = useRef<NodeJS.Timeout>()
+  const mountedRef = useRef(true)
 
   // Keep refs to latest values so unmount cleanup never has stale data
   const dataRef = useRef<T>(data)
@@ -57,16 +58,20 @@ export function useAutoSave<T>(
 
     try {
       isSavingRef.current = true
-      setStatus('saving')
+      if (mountedRef.current) setStatus('saving')
       await onSaveRef.current(currentData)
       previousDataRef.current = serialized
-      setStatus('saved')
-      // Clear any existing saved timer
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
-      savedTimerRef.current = setTimeout(() => setStatus('idle'), 2000)
+      if (mountedRef.current) {
+        setStatus('saved')
+        // Clear any existing saved timer
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+        savedTimerRef.current = setTimeout(() => {
+          if (mountedRef.current) setStatus('idle')
+        }, 2000)
+      }
     } catch (error) {
       console.error('Auto-save failed:', error)
-      setStatus('error')
+      if (mountedRef.current) setStatus('error')
       onErrorRef.current?.(error as Error)
     } finally {
       isSavingRef.current = false
@@ -102,7 +107,9 @@ export function useAutoSave<T>(
 
   // Save immediately on unmount using refs for current values
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }

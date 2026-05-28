@@ -27,10 +27,12 @@ export function exportSVG(
     sceneName: string,
     canvasBg: string
 ): void {
-    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" style="background:${canvasBg}">`
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" style="background:${escapeXml(canvasBg)}">`
 
     elements.forEach((el) => {
-        const style = `stroke="${el.strokeColor}" stroke-width="${el.strokeWidth}" fill="${el.fillColor === 'transparent' ? 'none' : el.fillColor}" opacity="${el.opacity}"`
+        const strokeColor = escapeXml(el.strokeColor)
+        const fillColor = el.fillColor === 'transparent' ? 'none' : escapeXml(el.fillColor)
+        const style = `stroke="${strokeColor}" stroke-width="${el.strokeWidth}" fill="${fillColor}" opacity="${el.opacity}"`
 
         switch (el.type) {
             case 'rectangle':
@@ -44,7 +46,7 @@ export function exportSVG(
                 svg += `<line x1="${el.x}" y1="${el.y}" x2="${el.x + el.width}" y2="${el.y + el.height}" ${style}/>`
                 break
             case 'text':
-                svg += `<text x="${el.x}" y="${el.y + 20}" fill="${el.strokeColor}" font-size="${el.fontSize || 20}">${escapeXml(el.text || '')}</text>`
+                svg += `<text x="${el.x}" y="${el.y + 20}" fill="${strokeColor}" font-size="${el.fontSize || 20}">${escapeXml(el.text || '')}</text>`
                 break
         }
     })

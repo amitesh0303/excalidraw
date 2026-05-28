@@ -36,11 +36,11 @@ function getSupabaseClient(): SupabaseClient<Database> {
  * Throws if environment variables are missing only when actually used.
  */
 export const supabase: SupabaseClient<Database> = new Proxy({} as SupabaseClient<Database>, {
-    get(_target, prop) {
+    get(_target, prop: string | symbol) {
         const client = getSupabaseClient()
-        const value = (client as any)[prop]
+        const value = client[prop as keyof typeof client]
         if (typeof value === 'function') {
-            return value.bind(client)
+            return (value as Function).bind(client)
         }
         return value
     }

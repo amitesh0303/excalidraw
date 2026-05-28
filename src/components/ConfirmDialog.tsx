@@ -22,12 +22,17 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const confirmBtnRef = useRef<HTMLButtonElement>(null)
+  const cancelBtnRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (isOpen) {
-      confirmBtnRef.current?.focus()
+      if (variant === 'danger') {
+        cancelBtnRef.current?.focus()
+      } else {
+        confirmBtnRef.current?.focus()
+      }
     }
-  }, [isOpen])
+  }, [isOpen, variant])
 
   useEffect(() => {
     if (!isOpen) return
@@ -56,6 +61,7 @@ export function ConfirmDialog({
         </div>
         <div className="modal-footer">
           <button
+            ref={cancelBtnRef}
             className="btn btn-ghost"
             onClick={onCancel}
             style={{ flex: 'none', padding: '0 16px' }}
