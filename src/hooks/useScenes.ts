@@ -4,15 +4,15 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import type { Scene } from '../types/database'
 import { sceneNameSchema, validateInput } from '../lib/validation'
-import { formatErrorMessage } from '../lib/errorHandler'
 import { sceneRateLimiter, checkRateLimit } from '../lib/rateLimiter'
+import { withErrorHandling } from '../lib/supabaseHelpers'
 
 // Parse scene from DB format
-function parseScene(raw: any): Scene {
+function parseScene(raw: Record<string, unknown>): Scene {
     return {
-        ...raw,
-        elements: typeof raw.elements === 'string' ? JSON.parse(raw.elements) : raw.elements || [],
-        app_state: typeof raw.app_state === 'string' ? JSON.parse(raw.app_state) : raw.app_state || {},
+        ...(raw as unknown as Scene),
+        elements: typeof raw.elements === 'string' ? JSON.parse(raw.elements as string) : raw.elements || [],
+        app_state: typeof raw.app_state === 'string' ? JSON.parse(raw.app_state as string) : raw.app_state || {},
     }
 }
 
@@ -36,7 +36,7 @@ export function useScenes() {
                 .order('updated_at', { ascending: false })
 
             if (fetchError) throw fetchError
-            setScenes((data || []).map(parseScene))
+            setScenes((data || []).map((d) => parseScene(d as Record<string, unknown>)))
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to fetch scenes')
         } finally {
@@ -52,7 +52,7 @@ export function useScenes() {
     const createScene = async (folderId?: string | null, name?: string): Promise<Scene | null> => {
         if (!user) return null
 
-        try {
+        return withErrorHandling(async () => {
             // Check rate limit
             checkRateLimit(sceneRateLimiter, user.id)
 
@@ -85,26 +85,22 @@ export function useScenes() {
                 .single()
 
             if (insertError) throw insertError
-            const parsed = parseScene(data)
+            const parsed = parseScene(data as Record<string, unknown>)
             setScenes((prev) => [parsed, ...prev])
             return parsed
-        } catch (err) {
-            const errorMsg = formatErrorMessage(err)
-            setError(errorMsg)
-            return null
-        }
+        }, setError)
     }
 
     // Update scene
     const updateScene = async (id: string, updates: Partial<Pick<Scene, 'name' | 'elements' | 'app_state' | 'folder_id' | 'thumbnail'>>) => {
-        try {
+        await withErrorHandling(async () => {
             // Validate scene name if provided
             if (updates.name !== undefined) {
                 updates.name = validateInput(sceneNameSchema, updates.name)
             }
             const updatedAt = new Date().toISOString()
 
-            const dbUpdates: any = { updated_at: updatedAt }
+            const dbUpdates: Record<string, string | null> = { updated_at: updatedAt }
             if (updates.name !== undefined) dbUpdates.name = updates.name
             if (updates.folder_id !== undefined) dbUpdates.folder_id = updates.folder_id
             if (updates.thumbnail !== undefined) dbUpdates.thumbnail = updates.thumbnail
@@ -120,15 +116,12 @@ export function useScenes() {
             setScenes((prev) =>
                 prev.map((s) => (s.id === id ? { ...s, ...updates, updated_at: updatedAt } : s))
             )
-        } catch (err) {
-            const errorMsg = formatErrorMessage(err)
-            setError(errorMsg)
-        }
+        }, setError)
     }
 
     // Delete scene
     const deleteScene = async (id: string) => {
-        try {
+        await withErrorHandling(async () => {
             const { error: deleteError } = await supabase
                 .from('scenes')
                 .delete()
@@ -136,15 +129,12 @@ export function useScenes() {
 
             if (deleteError) throw deleteError
             setScenes((prev) => prev.filter((s) => s.id !== id))
-        } catch (err) {
-            const errorMsg = formatErrorMessage(err)
-            setError(errorMsg)
-        }
+        }, setError)
     }
 
     // Get single scene
     const getScene = async (id: string): Promise<Scene | null> => {
-        try {
+        return withErrorHandling(async () => {
             const { data, error: fetchError } = await supabase
                 .from('scenes')
                 .select('*')
@@ -152,12 +142,8 @@ export function useScenes() {
                 .single()
 
             if (fetchError) throw fetchError
-            return parseScene(data)
-        } catch (err) {
-            const errorMsg = formatErrorMessage(err)
-            setError(errorMsg)
-            return null
-        }
+            return parseScene(data as Record<string, unknown>)
+        }, setError)
     }
 
     return {

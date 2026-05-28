@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useScenes } from '../hooks/useScenes'
 import { useFolders } from '../hooks/useFolders'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { SceneCardSkeletonGrid } from '../components/Skeleton'
+import { PageTransition } from '../components/PageTransition'
 
 export default function Dashboard() {
     const { user, signOut } = useAuth()
-    const { scenes, loading: scenesLoading, createScene, deleteScene, updateScene } = useScenes()
-    const { folders, createFolder, renameFolder, deleteFolder } = useFolders()
+    const { scenes, loading: scenesLoading, error: scenesError, createScene, deleteScene, updateScene } = useScenes()
+    const { folders, error: foldersError, createFolder, renameFolder, deleteFolder } = useFolders()
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
     const [darkMode, setDarkMode] = useState(true)
@@ -17,6 +20,7 @@ export default function Dashboard() {
     const [editingFolderName, setEditingFolderName] = useState('')
     const [sceneContextMenu, setSceneContextMenu] = useState<{ sceneId: string; x: number; y: number } | null>(null)
     const [folderContextMenu, setFolderContextMenu] = useState<{ folderId: string; x: number; y: number } | null>(null)
+    const [confirmDialog, setConfirmDialog] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
     const navigate = useNavigate()
 
     // Apply theme
@@ -34,24 +38,28 @@ export default function Dashboard() {
         return () => document.removeEventListener('click', handleClick)
     }, [])
 
-    const handleCreateScene = async () => {
+    const handleCreateScene = useCallback(async () => {
         const scene = await createScene(selectedFolder)
         if (scene) {
             navigate(`/editor/${scene.id}`)
         }
-    }
+    }, [createScene, selectedFolder, navigate])
 
-    const handleCreateFolder = async () => {
+    const handleCreateFolder = useCallback(async () => {
         await createFolder('New Folder')
-    }
+    }, [createFolder])
 
-    const handleDeleteScene = async (e: React.MouseEvent, sceneId: string) => {
+    const handleDeleteScene = useCallback(async (e: React.MouseEvent, sceneId: string) => {
         e.stopPropagation() // Prevent navigating to the scene
-        const confirmed = confirm('Are you sure you want to delete this scene?')
-        if (confirmed) {
-            await deleteScene(sceneId)
-        }
-    }
+        setConfirmDialog({
+            title: 'Delete Scene',
+            message: 'Are you sure you want to delete this scene? This action cannot be undone.',
+            onConfirm: async () => {
+                await deleteScene(sceneId)
+                setConfirmDialog(null)
+            },
+        })
+    }, [deleteScene])
 
     const handleRenameScene = (e: React.MouseEvent, sceneId: string, currentName: string) => {
         e.stopPropagation()
@@ -67,10 +75,10 @@ export default function Dashboard() {
         setEditingSceneName('')
     }
 
-    const handleMoveScene = async (sceneId: string, folderId: string | null) => {
+    const handleMoveScene = useCallback(async (sceneId: string, folderId: string | null) => {
         await updateScene(sceneId, { folder_id: folderId })
         setSceneContextMenu(null)
-    }
+    }, [updateScene])
 
     const handleSceneContextMenu = (e: React.MouseEvent, sceneId: string) => {
         e.preventDefault()
@@ -94,18 +102,22 @@ export default function Dashboard() {
 
     const handleDeleteFolder = async (e: React.MouseEvent, folderId: string) => {
         e.stopPropagation()
-        const confirmed = confirm('Are you sure you want to delete this folder? Scenes in this folder will be moved to "All Scenes".')
-        if (confirmed) {
-            // Move scenes out of folder first
-            const scenesInFolder = scenes.filter(s => s.folder_id === folderId)
-            for (const scene of scenesInFolder) {
-                await updateScene(scene.id, { folder_id: null })
-            }
-            await deleteFolder(folderId)
-            if (selectedFolder === folderId) {
-                setSelectedFolder(null)
-            }
-        }
+        setConfirmDialog({
+            title: 'Delete Folder',
+            message: 'Are you sure you want to delete this folder? Scenes in this folder will be moved to "All Scenes".',
+            onConfirm: async () => {
+                // Move scenes out of folder first
+                const scenesInFolder = scenes.filter(s => s.folder_id === folderId)
+                for (const scene of scenesInFolder) {
+                    await updateScene(scene.id, { folder_id: null })
+                }
+                await deleteFolder(folderId)
+                if (selectedFolder === folderId) {
+                    setSelectedFolder(null)
+                }
+                setConfirmDialog(null)
+            },
+        })
     }
 
     const handleFolderContextMenu = (e: React.MouseEvent, folderId: string) => {
@@ -114,14 +126,14 @@ export default function Dashboard() {
         setFolderContextMenu({ folderId, x: e.clientX, y: e.clientY })
     }
 
-    const handleLogout = async () => {
+    const handleLogout = useCallback(async () => {
         await signOut()
         navigate('/login')
-    }
+    }, [signOut, navigate])
 
     const filteredScenes = selectedFolder
         ? scenes.filter((s) => s.folder_id === selectedFolder)
-        : scenes.filter((s) => !s.folder_id)
+        : scenes
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr)
@@ -132,8 +144,32 @@ export default function Dashboard() {
         })
     }
 
+    // Combine errors from hooks
+    const dashboardError = scenesError || foldersError
+
     return (
+        <PageTransition>
         <div className={`dashboard ${darkMode ? 'dark' : 'light'}`}>
+            {/* Error Banner */}
+            {dashboardError && (
+                <div aria-live="polite" style={{
+                    position: 'fixed',
+                    top: '16px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 1000,
+                    background: '#dc3545',
+                    color: '#fff',
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    fontSize: '0.875rem',
+                    maxWidth: '500px',
+                    textAlign: 'center',
+                }}>
+                    {dashboardError}
+                </div>
+            )}
             {/* Sidebar */}
             <aside className="dashboard-sidebar">
                 <div className="sidebar-header">
@@ -174,6 +210,7 @@ export default function Dashboard() {
                                     className={`folder-item ${selectedFolder === folder.id ? 'active' : ''}`}
                                     onClick={() => setSelectedFolder(folder.id)}
                                     onContextMenu={(e) => handleFolderContextMenu(e, folder.id)}
+                                    aria-label={`Folder: ${folder.name}`}
                                 >
                                     <span className="folder-icon">📁</span>
                                     {editingFolderId === folder.id ? (
@@ -279,8 +316,8 @@ export default function Dashboard() {
 
                 <div className="dashboard-content">
                     {scenesLoading ? (
-                        <div className="loading-screen">
-                            <div className="spinner"></div>
+                        <div className="scenes-grid">
+                            <SceneCardSkeletonGrid />
                         </div>
                     ) : (
                         <div className="scenes-grid">
@@ -299,6 +336,9 @@ export default function Dashboard() {
                                     className="scene-card"
                                     onClick={() => navigate(`/editor/${scene.id}`)}
                                     onContextMenu={(e) => handleSceneContextMenu(e, scene.id)}
+                                    aria-label={`Scene: ${scene.name}, ${scene.elements.length} elements`}
+                                    role="button"
+                                    tabIndex={0}
                                 >
                                     <div className="scene-preview">
                                         {scene.elements.length > 0 ? '🎨' : '📄'}
@@ -354,11 +394,28 @@ export default function Dashboard() {
 
                             {filteredScenes.length === 0 && (
                                 <div className="empty-state" style={{ gridColumn: '1 / -1' }}>
-                                    <div className="empty-icon">🎨</div>
-                                    <h3 className="empty-title">No scenes yet</h3>
+                                    <svg width="120" height="120" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+                                        {/* Easel body */}
+                                        <rect x="25" y="20" width="70" height="55" rx="4" stroke="var(--accent-primary)" strokeWidth="2" fill="var(--accent-glow)" />
+                                        {/* Canvas area */}
+                                        <rect x="32" y="27" width="56" height="41" rx="2" fill="rgba(255,255,255,0.06)" stroke="var(--text-muted)" strokeWidth="1" />
+                                        {/* Easel legs */}
+                                        <line x1="40" y1="75" x2="30" y2="110" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" />
+                                        <line x1="80" y1="75" x2="90" y2="110" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" />
+                                        <line x1="60" y1="75" x2="60" y2="105" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" />
+                                        {/* Decorative brush stroke */}
+                                        <path d="M40 45 Q50 38 60 45 Q70 52 80 45" stroke="var(--accent-secondary)" strokeWidth="2" fill="none" strokeLinecap="round" />
+                                        {/* Star sparkle */}
+                                        <circle cx="95" cy="25" r="2" fill="var(--accent-primary)" />
+                                        <circle cx="100" cy="35" r="1.5" fill="var(--accent-secondary)" />
+                                    </svg>
+                                    <h3 className="empty-title">Your canvas awaits</h3>
                                     <p className="empty-description">
-                                        Create your first scene and start drawing!
+                                        Create scenes to sketch ideas, wireframes, diagrams, or anything you can imagine. Start with your first drawing below.
                                     </p>
+                                    <button className="btn btn-primary" onClick={handleCreateScene} style={{ maxWidth: '220px', marginTop: '8px' }}>
+                                        Create Your First Scene
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -372,9 +429,12 @@ export default function Dashboard() {
                     className="context-menu"
                     style={{ left: sceneContextMenu.x, top: sceneContextMenu.y }}
                     onClick={(e) => e.stopPropagation()}
+                    role="menu"
+                    aria-label="Scene actions"
                 >
                     <button
                         className="dropdown-item"
+                        role="menuitem"
                         onClick={() => {
                             const scene = scenes.find(s => s.id === sceneContextMenu.sceneId)
                             if (scene) handleRenameScene({ stopPropagation: () => {} } as React.MouseEvent, scene.id, scene.name)
@@ -425,6 +485,8 @@ export default function Dashboard() {
                     className="context-menu"
                     style={{ left: folderContextMenu.x, top: folderContextMenu.y }}
                     onClick={(e) => e.stopPropagation()}
+                    role="menu"
+                    aria-label="Folder actions"
                 >
                     <button
                         className="dropdown-item"
@@ -449,6 +511,18 @@ export default function Dashboard() {
                     </button>
                 </div>
             )}
+
+            {/* Confirm Dialog */}
+            <ConfirmDialog
+                isOpen={!!confirmDialog}
+                title={confirmDialog?.title || ''}
+                message={confirmDialog?.message || ''}
+                confirmLabel="Delete"
+                variant="danger"
+                onConfirm={() => confirmDialog?.onConfirm()}
+                onCancel={() => setConfirmDialog(null)}
+            />
         </div>
+        </PageTransition>
     )
 }

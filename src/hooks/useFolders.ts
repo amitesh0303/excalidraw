@@ -4,8 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import type { Folder } from '../types/database'
 import { folderNameSchema, validateInput } from '../lib/validation'
-import { formatErrorMessage } from '../lib/errorHandler'
-import { folderRateLimiter, checkRateLimit } from '../lib/rateLimiter'
+import { checkRateLimit, folderRateLimiter } from '../lib/rateLimiter'
+import { withErrorHandling } from '../lib/supabaseHelpers'
 
 export function useFolders() {
     const { user } = useAuth()
@@ -43,7 +43,7 @@ export function useFolders() {
     const createFolder = async (name: string = 'New Folder', parentId?: string | null): Promise<Folder | null> => {
         if (!user) return null
 
-        try {
+        return withErrorHandling(async () => {
             // Check rate limit
             checkRateLimit(folderRateLimiter, user.id)
 
@@ -67,16 +67,12 @@ export function useFolders() {
             if (insertError) throw insertError
             setFolders((prev) => [...prev, data as Folder])
             return data as Folder
-        } catch (err) {
-            const errorMsg = formatErrorMessage(err)
-            setError(errorMsg)
-            return null
-        }
+        }, setError)
     }
 
     // Rename folder
     const renameFolder = async (id: string, name: string) => {
-        try {
+        await withErrorHandling(async () => {
             // Validate folder name
             const validatedName = validateInput(folderNameSchema, name)
 
@@ -87,15 +83,12 @@ export function useFolders() {
 
             if (updateError) throw updateError
             setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name: validatedName } : f)))
-        } catch (err) {
-            const errorMsg = formatErrorMessage(err)
-            setError(errorMsg)
-        }
+        }, setError)
     }
 
     // Delete folder
     const deleteFolder = async (id: string) => {
-        try {
+        await withErrorHandling(async () => {
             const { error: deleteError } = await supabase
                 .from('folders')
                 .delete()
@@ -103,10 +96,7 @@ export function useFolders() {
 
             if (deleteError) throw deleteError
             setFolders((prev) => prev.filter((f) => f.id !== id && f.parent_id !== id))
-        } catch (err) {
-            const errorMsg = formatErrorMessage(err)
-            setError(errorMsg)
-        }
+        }, setError)
     }
 
     return {

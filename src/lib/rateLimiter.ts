@@ -1,6 +1,12 @@
 /**
- * Simple in-memory rate limiter
- * For production, use a proper rate limiting service or Redis
+ * Simple in-memory rate limiter (CLIENT-SIDE ONLY)
+ * 
+ * NOTE: This is a client-side rate limiter and provides NO server-side security.
+ * It can be trivially bypassed by modifying client code. For actual security,
+ * rate limiting must be implemented server-side (e.g., via Supabase RLS policies,
+ * edge functions, or a dedicated rate limiting service like Redis).
+ * 
+ * This exists only as a UX measure to prevent accidental rapid-fire requests.
  */
 
 interface RateLimitConfig {
@@ -16,12 +22,22 @@ interface RateLimitEntry {
 class RateLimiter {
   private limits: Map<string, RateLimitEntry> = new Map()
   private config: RateLimitConfig
+  private cleanupInterval: ReturnType<typeof setInterval>
 
   constructor(config: RateLimitConfig) {
     this.config = config
     
     // Clean up expired entries every minute
-    setInterval(() => this.cleanup(), 60000)
+    this.cleanupInterval = setInterval(() => this.cleanup(), 60000)
+  }
+
+  /**
+   * Stop the cleanup interval timer.
+   * Call this when the rate limiter is no longer needed to prevent memory leaks.
+   */
+  destroy() {
+    clearInterval(this.cleanupInterval)
+    this.limits.clear()
   }
 
   /**

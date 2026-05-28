@@ -22,14 +22,24 @@ export interface Bounds {
 
 /**
  * Get bounding box for a canvas element
+ * Normalizes negative width/height (from elements drawn right-to-left or bottom-to-top)
  */
 export function getElementBounds(element: CanvasElement): Bounds {
-  return {
-    x: element.x,
-    y: element.y,
-    width: element.width,
-    height: element.height
+  let x = element.x
+  let y = element.y
+  let width = element.width
+  let height = element.height
+
+  if (width < 0) {
+    x += width
+    width = -width
   }
+  if (height < 0) {
+    y += height
+    height = -height
+  }
+
+  return { x, y, width, height }
 }
 
 /**

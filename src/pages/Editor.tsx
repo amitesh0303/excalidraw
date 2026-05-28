@@ -6,7 +6,12 @@ import rough from 'roughjs'
 import { useCanvasStore, Tool } from '../store/canvasStore'
 import { useScenes } from '../hooks/useScenes'
 import { useAutoSave } from '../hooks/useAutoSave'
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { getVisibleElements, getElementsInSelection } from '../lib/canvasUtils'
+import { exportPNG, exportSVG, exportJSON } from '../lib/exportUtils'
+import { useToast } from '../components/Toast'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { KeyboardShortcutsModal } from '../components/KeyboardShortcutsModal'
 import type { CanvasElement } from '../types/database'
 
 // SVG Tool Icons (Excalidraw-style)
@@ -102,19 +107,19 @@ const ToolIcons: Record<Tool, React.ReactNode> = {
 
 // Tool definitions
 const TOOLS: { id: Tool; label: string; shortcut: string }[] = [
-    { id: 'select', label: 'Selection', shortcut: 'Ctrl+1' },
-    { id: 'hand', label: 'Hand (Pan)', shortcut: 'Ctrl+H' },
-    { id: 'rectangle', label: 'Rectangle', shortcut: 'Ctrl+R' },
-    { id: 'ellipse', label: 'Ellipse', shortcut: 'Ctrl+O' },
-    { id: 'diamond', label: 'Diamond', shortcut: 'Ctrl+D' },
-    { id: 'line', label: 'Line', shortcut: 'Ctrl+L' },
-    { id: 'arrow', label: 'Arrow', shortcut: 'Ctrl+A' },
-    { id: 'freedraw', label: 'Pencil', shortcut: 'Ctrl+P' },
-    { id: 'text', label: 'Text', shortcut: 'Ctrl+T' },
-    { id: 'eraser', label: 'Eraser', shortcut: 'Ctrl+E' },
-    { id: 'frame', label: 'Frame', shortcut: 'Ctrl+F' },
-    { id: 'webembed', label: 'Web Embed', shortcut: 'Ctrl+W' },
-    { id: 'laser', label: 'Laser Pointer', shortcut: 'Ctrl+.' },
+    { id: 'select', label: 'Selection', shortcut: 'V' },
+    { id: 'hand', label: 'Hand (Pan)', shortcut: 'H' },
+    { id: 'rectangle', label: 'Rectangle', shortcut: 'R' },
+    { id: 'ellipse', label: 'Ellipse', shortcut: 'O' },
+    { id: 'diamond', label: 'Diamond', shortcut: 'D' },
+    { id: 'line', label: 'Line', shortcut: 'L' },
+    { id: 'arrow', label: 'Arrow', shortcut: 'A' },
+    { id: 'freedraw', label: 'Pencil', shortcut: 'P' },
+    { id: 'text', label: 'Text', shortcut: 'T' },
+    { id: 'eraser', label: 'Eraser', shortcut: 'E' },
+    { id: 'frame', label: 'Frame', shortcut: 'F' },
+    { id: 'webembed', label: 'Web Embed', shortcut: 'W' },
+    { id: 'laser', label: 'Laser Pointer', shortcut: '.' },
 ]
 
 // Extended color palette
@@ -140,6 +145,8 @@ export default function Editor() {
     const containerRef = useRef<HTMLDivElement>(null)
     const imageInputRef = useRef<HTMLInputElement>(null)
     const textInputRef = useRef<HTMLTextAreaElement>(null)
+    const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map())
+    const { addToast } = useToast()
 
     // Scene management
     const { getScene, updateScene, deleteScene } = useScenes()
@@ -223,6 +230,10 @@ export default function Editor() {
     const [embedUrl, setEmbedUrl] = useState('')
     const [laserPoints, setLaserPoints] = useState<number[][]>([])
 
+    // Dialog states for confirm and shortcuts
+    const [showConfirmDelete, setShowConfirmDelete] = useState(false)
+    const [showShortcutsModal, setShowShortcutsModal] = useState(false)
+
     // Load scene on mount
     useEffect(() => {
         if (sceneId) {
@@ -236,7 +247,7 @@ export default function Editor() {
     }, [sceneId])
 
     // Optimized auto-save with change detection
-    useAutoSave(
+    const { status: autoSaveStatus } = useAutoSave(
         { elements, appState: { zoom, scrollX, scrollY, selectedElementIds } },
         {
             delay: 2000,
@@ -315,156 +326,17 @@ export default function Editor() {
     })
 
     // Keyboard shortcuts
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-
-            // Space for pan
-            if (e.code === 'Space' && !e.repeat) {
-                setSpacePressed(true)
-                e.preventDefault()
-            }
-
-            // Tool shortcuts (Ctrl + key to avoid conflicts while typing)
-            if (e.ctrlKey || e.metaKey) {
-                const shortcuts: Record<string, Tool> = {
-                    v: 'select', '1': 'select',
-                    r: 'rectangle', '2': 'rectangle',
-                    o: 'ellipse', '3': 'ellipse',
-                    d: 'diamond', '4': 'diamond',
-                    l: 'line', '5': 'line',
-                    a: 'arrow', '6': 'arrow',
-                    p: 'freedraw', '7': 'freedraw',
-                    t: 'text', '8': 'text',
-                    e: 'eraser', '9': 'eraser',
-                    w: 'webembed',
-                    '.': 'laser',
-                }
-                const tool = shortcuts[e.key.toLowerCase()]
-                if (tool) {
-                    e.preventDefault()
-                    setTool(tool)
-                }
-            }
-
-            // Undo/Redo
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-                e.preventDefault()
-                if (e.shiftKey) redo()
-                else undo()
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-                e.preventDefault()
-                redo()
-            }
-
-            // Copy/Cut/Paste/Duplicate
-            if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !e.shiftKey) {
-                e.preventDefault()
-                copySelected()
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
-                e.preventDefault()
-                cutSelected()
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'v' && !e.shiftKey) {
-                e.preventDefault()
-                pasteClipboard()
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
-                e.preventDefault()
-                duplicateSelected()
-            }
-
-            // Layer ordering
-            if ((e.ctrlKey || e.metaKey) && e.key === ']') {
-                e.preventDefault()
-                if (e.shiftKey) bringToFront(selectedElementIds)
-                else bringForward(selectedElementIds)
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === '[') {
-                e.preventDefault()
-                if (e.shiftKey) sendToBack(selectedElementIds)
-                else sendBackward(selectedElementIds)
-            }
-
-            // Group/Ungroup
-            if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
-                e.preventDefault()
-                if (e.shiftKey) ungroupSelected()
-                else groupSelected()
-            }
-
-            // Delete
-            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementIds.length > 0) {
-                e.preventDefault()
-                // Also delete any text elements bound to the deleted containers
-                const idsToDelete = [...selectedElementIds]
-                selectedElementIds.forEach(id => {
-                    const boundTexts = elements.filter(e => e.containerId === id)
-                    boundTexts.forEach(textEl => idsToDelete.push(textEl.id))
-                })
-                deleteElements(idsToDelete)
-                saveToHistory()
-            }
-
-            // Escape
-            if (e.key === 'Escape') {
-                clearSelection()
-                setTool('select')
-                setShowMenu(false)
-                setContextMenu(null)
-            }
-
-            // Reset zoom
-            if ((e.ctrlKey || e.metaKey) && e.key === '0') {
-                e.preventDefault()
-                setZoom(1)
-                setScroll(0, 0)
-            }
-
-            // Find on Canvas (Ctrl+F)
-            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-                e.preventDefault()
-                setFindDialog(true)
-            }
-
-            // Command Palette (Ctrl+/)
-            if ((e.ctrlKey || e.metaKey) && (e.key === '/' || (e.shiftKey && e.key === 'p'))) {
-                e.preventDefault()
-                setCommandPalette(true)
-            }
-
-            // Add Link (Ctrl+L)
-            if ((e.ctrlKey || e.metaKey) && e.key === 'l' && selectedElementIds.length > 0 && !e.shiftKey) {
-                e.preventDefault()
-                const element = elements.find(el => el.id === selectedElementIds[0])
-                if (element) {
-                    setLinkDialog({ x: 0, y: 0, url: element.link || '', elementId: element.id })
-                }
-            }
-
-            // Lasso Selection (Shift+L but not same as group)
-            if (e.shiftKey && e.key === 'l' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault()
-                setLassoMode(!lassoMode)
-                if (lassoMode) setLassoPoints([])
-            }
-        }
-
-        const handleKeyUp = (e: KeyboardEvent) => {
-            if (e.code === 'Space') {
-                setSpacePressed(false)
-            }
-        }
-
-        window.addEventListener('keydown', handleKeyDown)
-        window.addEventListener('keyup', handleKeyUp)
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown)
-            window.removeEventListener('keyup', handleKeyUp)
-        }
-    }, [selectedElementIds])
+    useKeyboardShortcuts({
+        setTool, undo, redo,
+        copySelected, cutSelected, pasteClipboard, duplicateSelected,
+        bringToFront, sendToBack, bringForward, sendBackward,
+        groupSelected, ungroupSelected,
+        deleteElements, clearSelection, saveToHistory,
+        setZoom, setScroll,
+        setSpacePressed, setFindDialog, setCommandPalette, setLinkDialog,
+        setShowMenu, setContextMenu: () => setContextMenu(null),
+        lassoMode, setLassoMode, setLassoPoints,
+    })
 
     // Draw canvas
     const draw = useCallback(() => {
@@ -505,11 +377,11 @@ export default function Editor() {
         const endX = startX + rect.width / zoom + gridSize * 3
         const endY = startY + rect.height / zoom + gridSize * 3
 
+        const dotRenderSize = dotSize / zoom
+        const halfDot = dotRenderSize / 2
         for (let x = startX; x < endX; x += gridSize) {
             for (let y = startY; y < endY; y += gridSize) {
-                ctx.beginPath()
-                ctx.arc(x, y, dotSize / zoom, 0, Math.PI * 2)
-                ctx.fill()
+                ctx.fillRect(x - halfDot, y - halfDot, dotRenderSize, dotRenderSize)
             }
         }
 
@@ -523,7 +395,15 @@ export default function Editor() {
                 'cross-hatch': 'cross-hatch',
                 'zigzag': 'zigzag-line',
             }
-            const options: any = {
+            const options: {
+                stroke: string
+                fill: string | undefined
+                fillStyle: string
+                strokeWidth: number
+                roughness: number
+                seed: number
+                strokeLineDash?: number[]
+            } = {
                 stroke: element.strokeColor,
                 fill: element.fillColor === 'transparent' ? undefined : element.fillColor,
                 fillStyle: roughFillMap[element.fillStyle || 'solid'] || 'solid',
@@ -656,11 +536,21 @@ export default function Editor() {
                 }
                 case 'image':
                     if (element.imageData) {
-                        const img = new Image()
-                        img.onload = () => {
+                        const cache = imageCacheRef.current
+                        let img = cache.get(element.imageData)
+                        if (!img) {
+                            img = new Image()
+                            img.onload = () => {
+                                // Trigger a redraw once the image is loaded
+                                draw()
+                            }
+                            img.src = element.imageData
+                            cache.set(element.imageData, img)
+                        }
+                        // Only draw if the image has finished loading
+                        if (img.complete && img.naturalWidth > 0) {
                             ctx.drawImage(img, element.x, element.y, element.width, element.height)
                         }
-                        img.src = element.imageData
                     }
                     break
                 case 'frame':
@@ -1217,7 +1107,7 @@ export default function Editor() {
         setStartPos({ x, y })
 
         const newElement: Omit<CanvasElement, 'id' | 'seed'> = {
-            type: currentTool as any,
+            type: currentTool as CanvasElement['type'],
             x, y,
             width: 0,
             height: 0,
@@ -1227,8 +1117,6 @@ export default function Editor() {
             fillStyle,
             roundness,
             points: currentTool === 'freedraw' ? [[x, y]] : undefined,
-            frameName: (currentTool as any) === 'frame' ? frameName : undefined,
-            embedUrl: (currentTool as any) === 'webembed' ? embedUrl : undefined,
         }
 
         setCurrentElement({ ...newElement, id: 'temp', seed: Math.floor(Math.random() * 100000) } as CanvasElement)
@@ -1478,54 +1366,15 @@ export default function Editor() {
 
     // Export handlers
     const handleExportPNG = () => {
-        const canvas = canvasRef.current
-        if (!canvas) return
-
-        const link = document.createElement('a')
-        link.download = `${sceneName}.png`
-        link.href = canvas.toDataURL('image/png')
-        link.click()
+        exportPNG(canvasRef, sceneName)
     }
 
     const handleExportSVG = () => {
-        let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" style="background:${canvasBg}">`
-
-        elements.forEach((el) => {
-            const style = `stroke="${el.strokeColor}" stroke-width="${el.strokeWidth}" fill="${el.fillColor === 'transparent' ? 'none' : el.fillColor}" opacity="${el.opacity}"`
-
-            switch (el.type) {
-                case 'rectangle':
-                    svg += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" ${style}/>`
-                    break
-                case 'ellipse':
-                    svg += `<ellipse cx="${el.x + el.width / 2}" cy="${el.y + el.height / 2}" rx="${Math.abs(el.width) / 2}" ry="${Math.abs(el.height) / 2}" ${style}/>`
-                    break
-                case 'line':
-                case 'arrow':
-                    svg += `<line x1="${el.x}" y1="${el.y}" x2="${el.x + el.width}" y2="${el.y + el.height}" ${style}/>`
-                    break
-                case 'text':
-                    svg += `<text x="${el.x}" y="${el.y + 20}" fill="${el.strokeColor}" font-size="${el.fontSize || 20}">${el.text}</text>`
-                    break
-            }
-        })
-
-        svg += '</svg>'
-
-        const blob = new Blob([svg], { type: 'image/svg+xml' })
-        const link = document.createElement('a')
-        link.download = `${sceneName}.svg`
-        link.href = URL.createObjectURL(blob)
-        link.click()
+        exportSVG(elements, sceneName, canvasBg)
     }
 
     const handleExportJSON = () => {
-        const data = exportScene()
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-        const link = document.createElement('a')
-        link.download = `${sceneName}.json`
-        link.href = URL.createObjectURL(blob)
-        link.click()
+        exportJSON(exportScene, sceneName)
     }
 
     const handleSaveName = () => {
@@ -1536,11 +1385,15 @@ export default function Editor() {
     }
 
     const handleDeleteScene = async () => {
-        const confirmed = confirm('Are you sure you want to delete this scene?')
-        if (confirmed && sceneId) {
+        setShowConfirmDelete(true)
+    }
+
+    const confirmDeleteScene = async () => {
+        if (sceneId) {
             await deleteScene(sceneId)
             navigate('/')
         }
+        setShowConfirmDelete(false)
     }
 
     const getCursor = () => {
@@ -1671,8 +1524,10 @@ export default function Editor() {
                                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
                                 const link = document.createElement('a')
                                 link.download = `${sceneName}.json`
-                                link.href = URL.createObjectURL(blob)
+                                const url = URL.createObjectURL(blob)
+                                link.href = url
                                 link.click()
+                                setTimeout(() => URL.revokeObjectURL(url), 1000)
                                 setShowMenu(false)
                             }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1716,7 +1571,7 @@ export default function Editor() {
                             </button>
                             <div className="dropdown-divider" />
                             <button className="dropdown-item" onClick={() => {
-                                alert('📋 Keyboard Shortcuts\n\nTools:\nCtrl+1: Select | Ctrl+2: Rectangle | Ctrl+3: Ellipse\nCtrl+4: Diamond | Ctrl+5: Line | Ctrl+6: Arrow\nCtrl+7: Pencil | Ctrl+8: Text | Ctrl+9: Eraser | Ctrl+O: Image\n\nEditing:\nCtrl+Z: Undo | Ctrl+Y: Redo\nCtrl+C: Copy | Ctrl+X: Cut | Ctrl+V: Paste | Ctrl+D: Duplicate\nCtrl+G: Group | Delete: Delete | Esc: Deselect\n\nLayers:\nCtrl+]: Bring Forward | Ctrl+[: Send Backward\nCtrl+Shift+]: Bring to Front | Ctrl+Shift+[: Send to Back\n\nOther:\nCtrl+F: Find | Ctrl+/: Command Palette\nSpace: Pan | Ctrl+L: Add Link\nCtrl+Shift+L: Lasso Select')
+                                setShowShortcutsModal(true)
                                 setShowMenu(false)
                             }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1731,7 +1586,7 @@ export default function Editor() {
                                 const encoded = btoa(JSON.stringify(data))
                                 const shareUrl = `${window.location.origin}/?drawing=${encoded}`
                                 navigator.clipboard.writeText(shareUrl)
-                                alert('Share link copied to clipboard!')
+                                addToast('Share link copied to clipboard!', 'success')
                                 setShowMenu(false)
                             }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1755,13 +1610,15 @@ export default function Editor() {
 
                 {/* Center: Tools */}
                 <div className="toolbar-section toolbar-center">
-                    <div className="tools-group">
+                    <div className="tools-group" role="toolbar" aria-label="Drawing tools">
                         {TOOLS.map((tool) => (
                             <button
                                 key={tool.id}
                                 className={`tool-btn ${currentTool === tool.id ? 'active' : ''}`}
                                 onClick={() => setTool(tool.id)}
                                 title={`${tool.label} (${tool.shortcut})`}
+                                aria-label={`${tool.label} tool, shortcut ${tool.shortcut}`}
+                                aria-pressed={currentTool === tool.id}
                             >
                                 {ToolIcons[tool.id]}
                             </button>
@@ -1771,6 +1628,8 @@ export default function Editor() {
                             className={`tool-btn ${keepSelectedTool ? 'active' : ''}`}
                             onClick={() => setKeepSelectedTool(!keepSelectedTool)}
                             title={`Keep selected tool after drawing (${keepSelectedTool ? 'ON' : 'OFF'})`}
+                            aria-label={`Lock tool, ${keepSelectedTool ? 'enabled' : 'disabled'}`}
+                            aria-pressed={keepSelectedTool}
                             style={{ marginLeft: '8px' }}
                         >
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1806,6 +1665,15 @@ export default function Editor() {
                         <button className="scene-name-btn" onClick={() => setIsEditingName(true)}>
                             {sceneName}
                         </button>
+                    )}
+
+                    {/* Auto-save status indicator */}
+                    {autoSaveStatus !== 'idle' && (
+                        <span className={`autosave-status autosave-${autoSaveStatus}`} aria-live="polite">
+                            {autoSaveStatus === 'saving' && <><span className="autosave-dot" />Saving...</>}
+                            {autoSaveStatus === 'saved' && 'Saved'}
+                            {autoSaveStatus === 'error' && 'Save failed'}
+                        </span>
                     )}
 
                     <div className="action-buttons">
@@ -2549,6 +2417,23 @@ export default function Editor() {
                 </div>,
                 document.body
             )}
+
+            {/* Confirm Delete Dialog */}
+            <ConfirmDialog
+                isOpen={showConfirmDelete}
+                title="Delete Scene"
+                message="Are you sure you want to delete this scene? This action cannot be undone."
+                confirmLabel="Delete"
+                variant="danger"
+                onConfirm={confirmDeleteScene}
+                onCancel={() => setShowConfirmDelete(false)}
+            />
+
+            {/* Keyboard Shortcuts Modal */}
+            <KeyboardShortcutsModal
+                isOpen={showShortcutsModal}
+                onClose={() => setShowShortcutsModal(false)}
+            />
         </div>
     )
 }

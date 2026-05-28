@@ -1,0 +1,33 @@
+{
+  "project_type": "React 18 + TypeScript drawing app (Excalidraw clone) with Supabase backend",
+  "language": "TypeScript/React",
+  "build_system": "Vite with @cloudflare/vite-plugin, deployed to Cloudflare Workers via wrangler",
+  "test_framework": "Vitest with jsdom environment, @testing-library/react, setup in src/test/setup.ts",
+  "build_command": "npx tsc --noEmit",
+  "test_command": "npx vitest run",
+  "verification_instructions": "1. Run npm install 2. Run npx tsc --noEmit for type checking 3. Run npx vitest run for tests",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "npm install",
+  "environment_constraints": "OPEN_INTERNET mode - full network access. Supabase client requires env vars (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) which are not set - skip runtime tests that need Supabase. The cloudflare vite plugin may cause build issues without wrangler config.",
+  "contribution_requirements": "TypeScript strict mode enabled, ESLint configured",
+  "key_patterns": "Zustand store for canvas state, React hooks for data fetching (useScenes, useFolders), AuthContext for auth, RoughJS for rendering, canvas-based drawing with mouse event handlers in Editor.tsx, CSS variables for theming with dark/light mode",
+  "relevant_files": [
+    "src/pages/Editor.tsx",
+    "src/pages/Dashboard.tsx",
+    "src/pages/Login.tsx",
+    "src/pages/Signup.tsx",
+    "src/store/canvasStore.ts",
+    "src/hooks/useAutoSave.ts",
+    "src/hooks/useScenes.ts",
+    "src/hooks/useFolders.ts",
+    "src/context/AuthContext.tsx",
+    "src/lib/canvasUtils.ts",
+    "src/lib/rateLimiter.ts",
+    "src/lib/errorHandler.ts",
+    "src/lib/validation.ts",
+    "src/index.css",
+    "src/types/database.ts",
+    "src/components/ErrorBoundary.tsx"
+  ],
+  "directory_structure": "src/pages/ (Login, Signup, Dashboard, Editor), src/store/ (Zustand canvas store), src/hooks/ (useScenes, useFolders, useAutoSave), src/context/ (AuthContext), src/lib/ (supabase, canvasUtils, errorHandler, rateLimiter, validation), src/components/ (ErrorBoundary, KeyboardShortcutsModal), src/types/ (database types)"
+}
