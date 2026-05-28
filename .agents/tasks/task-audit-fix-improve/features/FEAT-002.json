@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "fix",
   "description": "Fix bugs, memory leaks, race conditions, and logic errors found during codebase audit",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "BUG 1 - Memory leak in rateLimiter.ts: The setInterval in the RateLimiter constructor runs forever and is never cleaned up. Since these are module-level singletons this is acceptable for now but add a destroy() method. More critically, fix the fact that the rate limiter is client-side only and provides no real security - add a comment noting this limitation.",
     "BUG 2 - Memory leak in useAutoSave.ts: The useEffect cleanup that fires on unmount captures stale `data` and `onSave` references because the dependency array is empty. Fix by using refs for the latest data/callbacks.",
@@ -30,5 +30,5 @@
     "Run npx vitest run and confirm all tests pass"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 12 bugs fixed successfully. TypeScript compiles cleanly (npx tsc --noEmit passes). All 22 vitest tests pass. Key approach notes: (1) supabase.ts uses a Proxy for lazy initialization so module import never throws; (2) keyboard shortcuts changed from Ctrl+key to single-key (V, R, O, D, L, A, P, T, E, H, F, W) for tools to avoid browser conflicts - Ctrl reserved for operations (undo, copy, duplicate, etc.); (3) useAutoSave uses pendingDataRef to queue data during in-flight saves; (4) Editor keyboard useEffect deps reduced to [lassoMode] since all other frequently-changing values are read via useCanvasStore.getState(); (5) image cache stored in a ref (Map<string, HTMLImageElement>) and triggers redraw on load."
 }
