@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "refactor",
   "description": "Improve code quality, performance, type safety, and maintainability across the codebase",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "PERF 1 - Editor.tsx draw() function: The dot grid draws thousands of individual arcs per frame. Replace with a single pattern-based approach or limit dots to viewport. Also the draw function is recreated every render via useCallback with many deps - memoize better or use requestAnimationFrame pattern.",
     "PERF 2 - Editor.tsx handleMouseMove: Every mouse move during selection triggers getElementsInSelection which iterates all elements. Use spatial indexing or at minimum early-exit for empty selections.",

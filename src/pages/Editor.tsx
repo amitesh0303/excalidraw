@@ -6,7 +6,9 @@ import rough from 'roughjs'
 import { useCanvasStore, Tool } from '../store/canvasStore'
 import { useScenes } from '../hooks/useScenes'
 import { useAutoSave } from '../hooks/useAutoSave'
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { getVisibleElements, getElementsInSelection } from '../lib/canvasUtils'
+import { exportPNG, exportSVG, exportJSON } from '../lib/exportUtils'
 import type { CanvasElement } from '../types/database'
 
 // SVG Tool Icons (Excalidraw-style)
@@ -316,202 +318,17 @@ export default function Editor() {
     })
 
     // Keyboard shortcuts
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-
-            // Space for pan
-            if (e.code === 'Space' && !e.repeat) {
-                setSpacePressed(true)
-                e.preventDefault()
-            }
-
-            // Single-key tool shortcuts (only when no modifier keys are held)
-            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-                const toolShortcuts: Record<string, Tool> = {
-                    v: 'select',
-                    h: 'hand',
-                    r: 'rectangle',
-                    o: 'ellipse',
-                    d: 'diamond',
-                    l: 'line',
-                    a: 'arrow',
-                    p: 'freedraw',
-                    t: 'text',
-                    e: 'eraser',
-                    f: 'frame',
-                    w: 'webembed',
-                    '.': 'laser',
-                }
-                const tool = toolShortcuts[e.key.toLowerCase()]
-                if (tool) {
-                    e.preventDefault()
-                    setTool(tool)
-                    return
-                }
-
-                // Number key shortcuts for tools (1-9)
-                const numberShortcuts: Record<string, Tool> = {
-                    '1': 'select',
-                    '2': 'rectangle',
-                    '3': 'ellipse',
-                    '4': 'diamond',
-                    '5': 'line',
-                    '6': 'arrow',
-                    '7': 'freedraw',
-                    '8': 'text',
-                    '9': 'eraser',
-                }
-                const numTool = numberShortcuts[e.key]
-                if (numTool) {
-                    e.preventDefault()
-                    setTool(numTool)
-                    return
-                }
-            }
-
-            // Ctrl/Cmd shortcuts
-            if (e.ctrlKey || e.metaKey) {
-                // Undo/Redo
-                if (e.key === 'z') {
-                    e.preventDefault()
-                    if (e.shiftKey) redo()
-                    else undo()
-                    return
-                }
-                if (e.key === 'y') {
-                    e.preventDefault()
-                    redo()
-                    return
-                }
-
-                // Copy/Cut/Paste/Duplicate
-                if (e.key === 'c' && !e.shiftKey) {
-                    e.preventDefault()
-                    copySelected()
-                    return
-                }
-                if (e.key === 'x') {
-                    e.preventDefault()
-                    cutSelected()
-                    return
-                }
-                if (e.key === 'v' && !e.shiftKey) {
-                    e.preventDefault()
-                    pasteClipboard()
-                    return
-                }
-                if (e.key === 'd') {
-                    e.preventDefault()
-                    duplicateSelected()
-                    return
-                }
-
-                // Layer ordering
-                if (e.key === ']') {
-                    e.preventDefault()
-                    const state = useCanvasStore.getState()
-                    if (e.shiftKey) bringToFront(state.selectedElementIds)
-                    else bringForward(state.selectedElementIds)
-                    return
-                }
-                if (e.key === '[') {
-                    e.preventDefault()
-                    const state = useCanvasStore.getState()
-                    if (e.shiftKey) sendToBack(state.selectedElementIds)
-                    else sendBackward(state.selectedElementIds)
-                    return
-                }
-
-                // Group/Ungroup
-                if (e.key === 'g') {
-                    e.preventDefault()
-                    if (e.shiftKey) ungroupSelected()
-                    else groupSelected()
-                    return
-                }
-
-                // Reset zoom
-                if (e.key === '0') {
-                    e.preventDefault()
-                    setZoom(1)
-                    setScroll(0, 0)
-                    return
-                }
-
-                // Find on Canvas (Ctrl+F)
-                if (e.key === 'f') {
-                    e.preventDefault()
-                    setFindDialog(true)
-                    return
-                }
-
-                // Command Palette (Ctrl+/ or Ctrl+Shift+P)
-                if (e.key === '/' || (e.shiftKey && e.key === 'p')) {
-                    e.preventDefault()
-                    setCommandPalette(true)
-                    return
-                }
-
-                // Add Link (Ctrl+L)
-                if (e.key === 'l' && !e.shiftKey) {
-                    e.preventDefault()
-                    const state = useCanvasStore.getState()
-                    if (state.selectedElementIds.length > 0) {
-                        const element = state.elements.find(el => el.id === state.selectedElementIds[0])
-                        if (element) {
-                            setLinkDialog({ x: 0, y: 0, url: element.link || '', elementId: element.id })
-                        }
-                    }
-                    return
-                }
-
-                // Lasso Selection (Ctrl+Shift+L)
-                if (e.shiftKey && e.key === 'l') {
-                    e.preventDefault()
-                    setLassoMode(!lassoMode)
-                    if (lassoMode) setLassoPoints([])
-                    return
-                }
-            }
-
-            // Delete
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-                const state = useCanvasStore.getState()
-                if (state.selectedElementIds.length > 0) {
-                    e.preventDefault()
-                    const idsToDelete = [...state.selectedElementIds]
-                    state.selectedElementIds.forEach(id => {
-                        const boundTexts = state.elements.filter(el => el.containerId === id)
-                        boundTexts.forEach(textEl => idsToDelete.push(textEl.id))
-                    })
-                    deleteElements(idsToDelete)
-                    saveToHistory()
-                }
-            }
-
-            // Escape
-            if (e.key === 'Escape') {
-                clearSelection()
-                setTool('select')
-                setShowMenu(false)
-                setContextMenu(null)
-            }
-        }
-
-        const handleKeyUp = (e: KeyboardEvent) => {
-            if (e.code === 'Space') {
-                setSpacePressed(false)
-            }
-        }
-
-        window.addEventListener('keydown', handleKeyDown)
-        window.addEventListener('keyup', handleKeyUp)
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown)
-            window.removeEventListener('keyup', handleKeyUp)
-        }
-    }, [lassoMode])
+    useKeyboardShortcuts({
+        setTool, undo, redo,
+        copySelected, cutSelected, pasteClipboard, duplicateSelected,
+        bringToFront, sendToBack, bringForward, sendBackward,
+        groupSelected, ungroupSelected,
+        deleteElements, clearSelection, saveToHistory,
+        setZoom, setScroll,
+        setSpacePressed, setFindDialog, setCommandPalette, setLinkDialog,
+        setShowMenu, setContextMenu: () => setContextMenu(null),
+        lassoMode, setLassoMode, setLassoPoints,
+    })
 
     // Draw canvas
     const draw = useCallback(() => {
@@ -552,11 +369,11 @@ export default function Editor() {
         const endX = startX + rect.width / zoom + gridSize * 3
         const endY = startY + rect.height / zoom + gridSize * 3
 
+        const dotRenderSize = dotSize / zoom
+        const halfDot = dotRenderSize / 2
         for (let x = startX; x < endX; x += gridSize) {
             for (let y = startY; y < endY; y += gridSize) {
-                ctx.beginPath()
-                ctx.arc(x, y, dotSize / zoom, 0, Math.PI * 2)
-                ctx.fill()
+                ctx.fillRect(x - halfDot, y - halfDot, dotRenderSize, dotRenderSize)
             }
         }
 
@@ -570,7 +387,15 @@ export default function Editor() {
                 'cross-hatch': 'cross-hatch',
                 'zigzag': 'zigzag-line',
             }
-            const options: any = {
+            const options: {
+                stroke: string
+                fill: string | undefined
+                fillStyle: string
+                strokeWidth: number
+                roughness: number
+                seed: number
+                strokeLineDash?: number[]
+            } = {
                 stroke: element.strokeColor,
                 fill: element.fillColor === 'transparent' ? undefined : element.fillColor,
                 fillStyle: roughFillMap[element.fillStyle || 'solid'] || 'solid',
@@ -1274,7 +1099,7 @@ export default function Editor() {
         setStartPos({ x, y })
 
         const newElement: Omit<CanvasElement, 'id' | 'seed'> = {
-            type: currentTool as any,
+            type: currentTool as CanvasElement['type'],
             x, y,
             width: 0,
             height: 0,
@@ -1284,8 +1109,6 @@ export default function Editor() {
             fillStyle,
             roundness,
             points: currentTool === 'freedraw' ? [[x, y]] : undefined,
-            frameName: (currentTool as any) === 'frame' ? frameName : undefined,
-            embedUrl: (currentTool as any) === 'webembed' ? embedUrl : undefined,
         }
 
         setCurrentElement({ ...newElement, id: 'temp', seed: Math.floor(Math.random() * 100000) } as CanvasElement)
@@ -1535,67 +1358,15 @@ export default function Editor() {
 
     // Export handlers
     const handleExportPNG = () => {
-        const canvas = canvasRef.current
-        if (!canvas) return
-
-        const link = document.createElement('a')
-        link.download = `${sceneName}.png`
-        link.href = canvas.toDataURL('image/png')
-        link.click()
+        exportPNG(canvasRef, sceneName)
     }
 
     const handleExportSVG = () => {
-        const escapeXml = (str: string): string => {
-            return str
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&apos;')
-        }
-
-        let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" style="background:${canvasBg}">`
-
-        elements.forEach((el) => {
-            const style = `stroke="${el.strokeColor}" stroke-width="${el.strokeWidth}" fill="${el.fillColor === 'transparent' ? 'none' : el.fillColor}" opacity="${el.opacity}"`
-
-            switch (el.type) {
-                case 'rectangle':
-                    svg += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" ${style}/>`
-                    break
-                case 'ellipse':
-                    svg += `<ellipse cx="${el.x + el.width / 2}" cy="${el.y + el.height / 2}" rx="${Math.abs(el.width) / 2}" ry="${Math.abs(el.height) / 2}" ${style}/>`
-                    break
-                case 'line':
-                case 'arrow':
-                    svg += `<line x1="${el.x}" y1="${el.y}" x2="${el.x + el.width}" y2="${el.y + el.height}" ${style}/>`
-                    break
-                case 'text':
-                    svg += `<text x="${el.x}" y="${el.y + 20}" fill="${el.strokeColor}" font-size="${el.fontSize || 20}">${escapeXml(el.text || '')}</text>`
-                    break
-            }
-        })
-
-        svg += '</svg>'
-
-        const blob = new Blob([svg], { type: 'image/svg+xml' })
-        const link = document.createElement('a')
-        link.download = `${sceneName}.svg`
-        const url = URL.createObjectURL(blob)
-        link.href = url
-        link.click()
-        setTimeout(() => URL.revokeObjectURL(url), 1000)
+        exportSVG(elements, sceneName, canvasBg)
     }
 
     const handleExportJSON = () => {
-        const data = exportScene()
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-        const link = document.createElement('a')
-        link.download = `${sceneName}.json`
-        const url = URL.createObjectURL(blob)
-        link.href = url
-        link.click()
-        setTimeout(() => URL.revokeObjectURL(url), 1000)
+        exportJSON(exportScene, sceneName)
     }
 
     const handleSaveName = () => {
@@ -1827,13 +1598,15 @@ export default function Editor() {
 
                 {/* Center: Tools */}
                 <div className="toolbar-section toolbar-center">
-                    <div className="tools-group">
+                    <div className="tools-group" role="toolbar" aria-label="Drawing tools">
                         {TOOLS.map((tool) => (
                             <button
                                 key={tool.id}
                                 className={`tool-btn ${currentTool === tool.id ? 'active' : ''}`}
                                 onClick={() => setTool(tool.id)}
                                 title={`${tool.label} (${tool.shortcut})`}
+                                aria-label={`${tool.label} tool, shortcut ${tool.shortcut}`}
+                                aria-pressed={currentTool === tool.id}
                             >
                                 {ToolIcons[tool.id]}
                             </button>
@@ -1843,6 +1616,8 @@ export default function Editor() {
                             className={`tool-btn ${keepSelectedTool ? 'active' : ''}`}
                             onClick={() => setKeepSelectedTool(!keepSelectedTool)}
                             title={`Keep selected tool after drawing (${keepSelectedTool ? 'ON' : 'OFF'})`}
+                            aria-label={`Lock tool, ${keepSelectedTool ? 'enabled' : 'disabled'}`}
+                            aria-pressed={keepSelectedTool}
                             style={{ marginLeft: '8px' }}
                         >
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

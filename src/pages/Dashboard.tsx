@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useScenes } from '../hooks/useScenes'
@@ -34,24 +34,24 @@ export default function Dashboard() {
         return () => document.removeEventListener('click', handleClick)
     }, [])
 
-    const handleCreateScene = async () => {
+    const handleCreateScene = useCallback(async () => {
         const scene = await createScene(selectedFolder)
         if (scene) {
             navigate(`/editor/${scene.id}`)
         }
-    }
+    }, [createScene, selectedFolder, navigate])
 
-    const handleCreateFolder = async () => {
+    const handleCreateFolder = useCallback(async () => {
         await createFolder('New Folder')
-    }
+    }, [createFolder])
 
-    const handleDeleteScene = async (e: React.MouseEvent, sceneId: string) => {
+    const handleDeleteScene = useCallback(async (e: React.MouseEvent, sceneId: string) => {
         e.stopPropagation() // Prevent navigating to the scene
         const confirmed = confirm('Are you sure you want to delete this scene?')
         if (confirmed) {
             await deleteScene(sceneId)
         }
-    }
+    }, [deleteScene])
 
     const handleRenameScene = (e: React.MouseEvent, sceneId: string, currentName: string) => {
         e.stopPropagation()
@@ -67,10 +67,10 @@ export default function Dashboard() {
         setEditingSceneName('')
     }
 
-    const handleMoveScene = async (sceneId: string, folderId: string | null) => {
+    const handleMoveScene = useCallback(async (sceneId: string, folderId: string | null) => {
         await updateScene(sceneId, { folder_id: folderId })
         setSceneContextMenu(null)
-    }
+    }, [updateScene])
 
     const handleSceneContextMenu = (e: React.MouseEvent, sceneId: string) => {
         e.preventDefault()
@@ -114,10 +114,10 @@ export default function Dashboard() {
         setFolderContextMenu({ folderId, x: e.clientX, y: e.clientY })
     }
 
-    const handleLogout = async () => {
+    const handleLogout = useCallback(async () => {
         await signOut()
         navigate('/login')
-    }
+    }, [signOut, navigate])
 
     const filteredScenes = selectedFolder
         ? scenes.filter((s) => s.folder_id === selectedFolder)
@@ -139,7 +139,7 @@ export default function Dashboard() {
         <div className={`dashboard ${darkMode ? 'dark' : 'light'}`}>
             {/* Error Banner */}
             {dashboardError && (
-                <div style={{
+                <div aria-live="polite" style={{
                     position: 'fixed',
                     top: '16px',
                     left: '50%',
@@ -197,6 +197,7 @@ export default function Dashboard() {
                                     className={`folder-item ${selectedFolder === folder.id ? 'active' : ''}`}
                                     onClick={() => setSelectedFolder(folder.id)}
                                     onContextMenu={(e) => handleFolderContextMenu(e, folder.id)}
+                                    aria-label={`Folder: ${folder.name}`}
                                 >
                                     <span className="folder-icon">📁</span>
                                     {editingFolderId === folder.id ? (
@@ -322,6 +323,9 @@ export default function Dashboard() {
                                     className="scene-card"
                                     onClick={() => navigate(`/editor/${scene.id}`)}
                                     onContextMenu={(e) => handleSceneContextMenu(e, scene.id)}
+                                    aria-label={`Scene: ${scene.name}, ${scene.elements.length} elements`}
+                                    role="button"
+                                    tabIndex={0}
                                 >
                                     <div className="scene-preview">
                                         {scene.elements.length > 0 ? '🎨' : '📄'}
@@ -395,9 +399,12 @@ export default function Dashboard() {
                     className="context-menu"
                     style={{ left: sceneContextMenu.x, top: sceneContextMenu.y }}
                     onClick={(e) => e.stopPropagation()}
+                    role="menu"
+                    aria-label="Scene actions"
                 >
                     <button
                         className="dropdown-item"
+                        role="menuitem"
                         onClick={() => {
                             const scene = scenes.find(s => s.id === sceneContextMenu.sceneId)
                             if (scene) handleRenameScene({ stopPropagation: () => {} } as React.MouseEvent, scene.id, scene.name)
@@ -448,6 +455,8 @@ export default function Dashboard() {
                     className="context-menu"
                     style={{ left: folderContextMenu.x, top: folderContextMenu.y }}
                     onClick={(e) => e.stopPropagation()}
+                    role="menu"
+                    aria-label="Folder actions"
                 >
                     <button
                         className="dropdown-item"
