@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useScenes } from '../hooks/useScenes'
 import { useFolders } from '../hooks/useFolders'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { SceneCardSkeletonGrid } from '../components/Skeleton'
+import { PageTransition } from '../components/PageTransition'
 
 export default function Dashboard() {
     const { user, signOut } = useAuth()
@@ -17,6 +20,7 @@ export default function Dashboard() {
     const [editingFolderName, setEditingFolderName] = useState('')
     const [sceneContextMenu, setSceneContextMenu] = useState<{ sceneId: string; x: number; y: number } | null>(null)
     const [folderContextMenu, setFolderContextMenu] = useState<{ folderId: string; x: number; y: number } | null>(null)
+    const [confirmDialog, setConfirmDialog] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
     const navigate = useNavigate()
 
     // Apply theme
@@ -47,10 +51,14 @@ export default function Dashboard() {
 
     const handleDeleteScene = useCallback(async (e: React.MouseEvent, sceneId: string) => {
         e.stopPropagation() // Prevent navigating to the scene
-        const confirmed = confirm('Are you sure you want to delete this scene?')
-        if (confirmed) {
-            await deleteScene(sceneId)
-        }
+        setConfirmDialog({
+            title: 'Delete Scene',
+            message: 'Are you sure you want to delete this scene? This action cannot be undone.',
+            onConfirm: async () => {
+                await deleteScene(sceneId)
+                setConfirmDialog(null)
+            },
+        })
     }, [deleteScene])
 
     const handleRenameScene = (e: React.MouseEvent, sceneId: string, currentName: string) => {
@@ -94,18 +102,22 @@ export default function Dashboard() {
 
     const handleDeleteFolder = async (e: React.MouseEvent, folderId: string) => {
         e.stopPropagation()
-        const confirmed = confirm('Are you sure you want to delete this folder? Scenes in this folder will be moved to "All Scenes".')
-        if (confirmed) {
-            // Move scenes out of folder first
-            const scenesInFolder = scenes.filter(s => s.folder_id === folderId)
-            for (const scene of scenesInFolder) {
-                await updateScene(scene.id, { folder_id: null })
-            }
-            await deleteFolder(folderId)
-            if (selectedFolder === folderId) {
-                setSelectedFolder(null)
-            }
-        }
+        setConfirmDialog({
+            title: 'Delete Folder',
+            message: 'Are you sure you want to delete this folder? Scenes in this folder will be moved to "All Scenes".',
+            onConfirm: async () => {
+                // Move scenes out of folder first
+                const scenesInFolder = scenes.filter(s => s.folder_id === folderId)
+                for (const scene of scenesInFolder) {
+                    await updateScene(scene.id, { folder_id: null })
+                }
+                await deleteFolder(folderId)
+                if (selectedFolder === folderId) {
+                    setSelectedFolder(null)
+                }
+                setConfirmDialog(null)
+            },
+        })
     }
 
     const handleFolderContextMenu = (e: React.MouseEvent, folderId: string) => {
@@ -136,6 +148,7 @@ export default function Dashboard() {
     const dashboardError = scenesError || foldersError
 
     return (
+        <PageTransition>
         <div className={`dashboard ${darkMode ? 'dark' : 'light'}`}>
             {/* Error Banner */}
             {dashboardError && (
@@ -303,8 +316,8 @@ export default function Dashboard() {
 
                 <div className="dashboard-content">
                     {scenesLoading ? (
-                        <div className="loading-screen">
-                            <div className="spinner"></div>
+                        <div className="scenes-grid">
+                            <SceneCardSkeletonGrid />
                         </div>
                     ) : (
                         <div className="scenes-grid">
@@ -381,11 +394,28 @@ export default function Dashboard() {
 
                             {filteredScenes.length === 0 && (
                                 <div className="empty-state" style={{ gridColumn: '1 / -1' }}>
-                                    <div className="empty-icon">🎨</div>
-                                    <h3 className="empty-title">No scenes yet</h3>
+                                    <svg width="120" height="120" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+                                        {/* Easel body */}
+                                        <rect x="25" y="20" width="70" height="55" rx="4" stroke="var(--accent-primary)" strokeWidth="2" fill="var(--accent-glow)" />
+                                        {/* Canvas area */}
+                                        <rect x="32" y="27" width="56" height="41" rx="2" fill="rgba(255,255,255,0.06)" stroke="var(--text-muted)" strokeWidth="1" />
+                                        {/* Easel legs */}
+                                        <line x1="40" y1="75" x2="30" y2="110" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" />
+                                        <line x1="80" y1="75" x2="90" y2="110" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" />
+                                        <line x1="60" y1="75" x2="60" y2="105" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" />
+                                        {/* Decorative brush stroke */}
+                                        <path d="M40 45 Q50 38 60 45 Q70 52 80 45" stroke="var(--accent-secondary)" strokeWidth="2" fill="none" strokeLinecap="round" />
+                                        {/* Star sparkle */}
+                                        <circle cx="95" cy="25" r="2" fill="var(--accent-primary)" />
+                                        <circle cx="100" cy="35" r="1.5" fill="var(--accent-secondary)" />
+                                    </svg>
+                                    <h3 className="empty-title">Your canvas awaits</h3>
                                     <p className="empty-description">
-                                        Create your first scene and start drawing!
+                                        Create scenes to sketch ideas, wireframes, diagrams, or anything you can imagine. Start with your first drawing below.
                                     </p>
+                                    <button className="btn btn-primary" onClick={handleCreateScene} style={{ maxWidth: '220px', marginTop: '8px' }}>
+                                        Create Your First Scene
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -481,6 +511,18 @@ export default function Dashboard() {
                     </button>
                 </div>
             )}
+
+            {/* Confirm Dialog */}
+            <ConfirmDialog
+                isOpen={!!confirmDialog}
+                title={confirmDialog?.title || ''}
+                message={confirmDialog?.message || ''}
+                confirmLabel="Delete"
+                variant="danger"
+                onConfirm={() => confirmDialog?.onConfirm()}
+                onCancel={() => setConfirmDialog(null)}
+            />
         </div>
+        </PageTransition>
     )
 }

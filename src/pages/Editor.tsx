@@ -9,6 +9,9 @@ import { useAutoSave } from '../hooks/useAutoSave'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { getVisibleElements, getElementsInSelection } from '../lib/canvasUtils'
 import { exportPNG, exportSVG, exportJSON } from '../lib/exportUtils'
+import { useToast } from '../components/Toast'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { KeyboardShortcutsModal } from '../components/KeyboardShortcutsModal'
 import type { CanvasElement } from '../types/database'
 
 // SVG Tool Icons (Excalidraw-style)
@@ -143,6 +146,7 @@ export default function Editor() {
     const imageInputRef = useRef<HTMLInputElement>(null)
     const textInputRef = useRef<HTMLTextAreaElement>(null)
     const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map())
+    const { addToast } = useToast()
 
     // Scene management
     const { getScene, updateScene, deleteScene } = useScenes()
@@ -226,6 +230,10 @@ export default function Editor() {
     const [embedUrl, setEmbedUrl] = useState('')
     const [laserPoints, setLaserPoints] = useState<number[][]>([])
 
+    // Dialog states for confirm and shortcuts
+    const [showConfirmDelete, setShowConfirmDelete] = useState(false)
+    const [showShortcutsModal, setShowShortcutsModal] = useState(false)
+
     // Load scene on mount
     useEffect(() => {
         if (sceneId) {
@@ -239,7 +247,7 @@ export default function Editor() {
     }, [sceneId])
 
     // Optimized auto-save with change detection
-    useAutoSave(
+    const { status: autoSaveStatus } = useAutoSave(
         { elements, appState: { zoom, scrollX, scrollY, selectedElementIds } },
         {
             delay: 2000,
@@ -1377,11 +1385,15 @@ export default function Editor() {
     }
 
     const handleDeleteScene = async () => {
-        const confirmed = confirm('Are you sure you want to delete this scene?')
-        if (confirmed && sceneId) {
+        setShowConfirmDelete(true)
+    }
+
+    const confirmDeleteScene = async () => {
+        if (sceneId) {
             await deleteScene(sceneId)
             navigate('/')
         }
+        setShowConfirmDelete(false)
     }
 
     const getCursor = () => {
@@ -1559,7 +1571,7 @@ export default function Editor() {
                             </button>
                             <div className="dropdown-divider" />
                             <button className="dropdown-item" onClick={() => {
-                                alert('Keyboard Shortcuts\n\nTools:\nV: Select | R: Rectangle | O: Ellipse\nD: Diamond | L: Line | A: Arrow\nP: Pencil | T: Text | E: Eraser\nH: Hand | F: Frame | W: Web Embed\n\nEditing:\nCtrl+Z: Undo | Ctrl+Y: Redo\nCtrl+C: Copy | Ctrl+X: Cut | Ctrl+V: Paste | Ctrl+D: Duplicate\nCtrl+G: Group | Delete: Delete | Esc: Deselect\n\nLayers:\nCtrl+]: Bring Forward | Ctrl+[: Send Backward\nCtrl+Shift+]: Bring to Front | Ctrl+Shift+[: Send to Back\n\nOther:\nCtrl+F: Find | Ctrl+/: Command Palette\nSpace: Pan | Ctrl+L: Add Link\nCtrl+Shift+L: Lasso Select')
+                                setShowShortcutsModal(true)
                                 setShowMenu(false)
                             }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1574,7 +1586,7 @@ export default function Editor() {
                                 const encoded = btoa(JSON.stringify(data))
                                 const shareUrl = `${window.location.origin}/?drawing=${encoded}`
                                 navigator.clipboard.writeText(shareUrl)
-                                alert('Share link copied to clipboard!')
+                                addToast('Share link copied to clipboard!', 'success')
                                 setShowMenu(false)
                             }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1653,6 +1665,15 @@ export default function Editor() {
                         <button className="scene-name-btn" onClick={() => setIsEditingName(true)}>
                             {sceneName}
                         </button>
+                    )}
+
+                    {/* Auto-save status indicator */}
+                    {autoSaveStatus !== 'idle' && (
+                        <span className={`autosave-status autosave-${autoSaveStatus}`} aria-live="polite">
+                            {autoSaveStatus === 'saving' && <><span className="autosave-dot" />Saving...</>}
+                            {autoSaveStatus === 'saved' && 'Saved'}
+                            {autoSaveStatus === 'error' && 'Save failed'}
+                        </span>
                     )}
 
                     <div className="action-buttons">
@@ -2396,6 +2417,23 @@ export default function Editor() {
                 </div>,
                 document.body
             )}
+
+            {/* Confirm Delete Dialog */}
+            <ConfirmDialog
+                isOpen={showConfirmDelete}
+                title="Delete Scene"
+                message="Are you sure you want to delete this scene? This action cannot be undone."
+                confirmLabel="Delete"
+                variant="danger"
+                onConfirm={confirmDeleteScene}
+                onCancel={() => setShowConfirmDelete(false)}
+            />
+
+            {/* Keyboard Shortcuts Modal */}
+            <KeyboardShortcutsModal
+                isOpen={showShortcutsModal}
+                onClose={() => setShowShortcutsModal(false)}
+            />
         </div>
     )
 }

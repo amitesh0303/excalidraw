@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { PageTransition } from '../components/PageTransition'
 
 export default function Login() {
     const [email, setEmail] = useState('')
@@ -26,6 +27,7 @@ export default function Login() {
     }
 
     return (
+        <PageTransition>
         <div className="auth-container">
             <div className="auth-card">
                 <div className="auth-header">
@@ -74,5 +76,6 @@ export default function Login() {
                 </p>
             </div>
         </div>
+        </PageTransition>
     )
 }

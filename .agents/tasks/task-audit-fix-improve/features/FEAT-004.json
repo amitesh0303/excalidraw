@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Improve UI/UX with better user feedback, animations, accessibility, toast notifications, and responsive design polish",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "UX 1 - Add a toast notification system: Replace all alert() and confirm() calls with a proper toast/notification component. Create src/components/Toast.tsx with a context provider. Support success, error, warning, info types. Auto-dismiss after configurable timeout. Add slide-in animation.",
     "UX 2 - Add auto-save indicator in Editor toolbar: Show a subtle status indicator (saving..., saved, error) near the scene name so users know their work is being persisted. Use the useAutoSave hook's state.",

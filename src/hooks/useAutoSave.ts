@@ -3,7 +3,9 @@
  * Only saves when data actually changes
  */
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
+
+export type AutoSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 export interface UseAutoSaveOptions {
   delay?: number
@@ -26,6 +28,8 @@ export function useAutoSave<T>(
   const timeoutRef = useRef<NodeJS.Timeout>()
   const isSavingRef = useRef(false)
   const pendingDataRef = useRef<T | null>(null)
+  const [status, setStatus] = useState<AutoSaveStatus>('idle')
+  const savedTimerRef = useRef<NodeJS.Timeout>()
 
   // Keep refs to latest values so unmount cleanup never has stale data
   const dataRef = useRef<T>(data)
@@ -53,10 +57,16 @@ export function useAutoSave<T>(
 
     try {
       isSavingRef.current = true
+      setStatus('saving')
       await onSaveRef.current(currentData)
       previousDataRef.current = serialized
+      setStatus('saved')
+      // Clear any existing saved timer
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+      savedTimerRef.current = setTimeout(() => setStatus('idle'), 2000)
     } catch (error) {
       console.error('Auto-save failed:', error)
+      setStatus('error')
       onErrorRef.current?.(error as Error)
     } finally {
       isSavingRef.current = false
@@ -96,6 +106,9 @@ export function useAutoSave<T>(
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
+      if (savedTimerRef.current) {
+        clearTimeout(savedTimerRef.current)
+      }
       // Force immediate save on unmount using the latest data from ref
       const currentData = dataRef.current
       const serialized = JSON.stringify(currentData)
@@ -109,6 +122,7 @@ export function useAutoSave<T>(
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
+    status,
     isSaving: isSavingRef.current,
     forceSave: () => save(dataRef.current)
   }
