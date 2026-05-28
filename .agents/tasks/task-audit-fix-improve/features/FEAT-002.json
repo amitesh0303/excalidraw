@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Fix bugs, memory leaks, race conditions, and logic errors found during codebase audit",
+  "status": "pending",
+  "steps": [
+    "BUG 1 - Memory leak in rateLimiter.ts: The setInterval in the RateLimiter constructor runs forever and is never cleaned up. Since these are module-level singletons this is acceptable for now but add a destroy() method. More critically, fix the fact that the rate limiter is client-side only and provides no real security - add a comment noting this limitation.",
+    "BUG 2 - Memory leak in useAutoSave.ts: The useEffect cleanup that fires on unmount captures stale `data` and `onSave` references because the dependency array is empty. Fix by using refs for the latest data/callbacks.",
+    "BUG 3 - Race condition in useAutoSave.ts: If component unmounts while a save is in progress, the isSavingRef prevents the final save. Also if save is in progress and data changes, the new changes are silently dropped. Fix by queuing the latest data when a save is in progress.",
+    "BUG 4 - Missing error boundary for async errors in Dashboard: The useScenes and useFolders hooks set error state but the Dashboard component never displays it to the user. Add error display in Dashboard.tsx.",
+    "BUG 5 - Keyboard shortcut conflicts in Editor.tsx: Ctrl+A is mapped to 'arrow' tool but is universally expected to be 'select all'. Ctrl+D mapped to 'diamond' but conflicts with 'duplicate'. Ctrl+L mapped to both 'line' tool and 'add link'. Fix shortcut conflicts by using number keys (1-9) for tools and removing Ctrl modifier conflicts.",
+    "BUG 6 - Image rendering bug in Editor.tsx draw(): Images are loaded via `new Image()` inside the draw loop. This means images are never cached, cause flickering, and the onload callback fires after the draw call completes (images never actually render on first frame). Fix by implementing an image cache.",
+    "BUG 7 - getElementBounds in canvasUtils.ts does not handle negative width/height: Elements drawn right-to-left or bottom-to-top have negative dimensions. The bounds calculation should normalize these. Fix getElementBounds to handle negative dims.",
+    "BUG 8 - SVG export is vulnerable to XSS: In handleExportSVG, element.text is directly interpolated into SVG without escaping. Fix by escaping special XML characters.",
+    "BUG 9 - URL.createObjectURL memory leak in export functions: createObjectURL is called but revokeObjectURL is never called. Fix by adding cleanup.",
+    "BUG 10 - useEffect dependency warnings in Editor.tsx: The useEffect for keyboard shortcuts depends on selectedElementIds but also uses elements, lassoMode, etc. which are not in the deps array. This causes stale closures. Fix by using refs for values that should not trigger re-attachment.",
+    "BUG 11 - Supabase client throws on import if env vars missing: The supabase.ts file throws immediately if vars are missing, crashing the entire app. Fix by providing graceful fallback or lazy initialization.",
+    "BUG 12 - The filteredScenes in Dashboard.tsx shows unfoldered scenes when no folder selected, but does not show ALL scenes. The 'All Scenes' button should show all scenes regardless of folder, not just unfoldered ones."
+  ],
+  "acceptance_criteria": [
+    "TypeScript compiles without errors after fixes",
+    "No console errors from memory leaks when navigating between pages",
+    "Keyboard shortcuts do not conflict with common browser/OS shortcuts",
+    "SVG export properly escapes text content",
+    "Image elements render correctly without flickering",
+    "All scenes visible when 'All Scenes' is selected in Dashboard"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit and confirm no type errors",
+    "Run npx vitest run and confirm all tests pass"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

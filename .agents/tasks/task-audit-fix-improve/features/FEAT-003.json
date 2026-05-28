@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-003",
+  "type": "refactor",
+  "description": "Improve code quality, performance, type safety, and maintainability across the codebase",
+  "status": "pending",
+  "steps": [
+    "PERF 1 - Editor.tsx draw() function: The dot grid draws thousands of individual arcs per frame. Replace with a single pattern-based approach or limit dots to viewport. Also the draw function is recreated every render via useCallback with many deps - memoize better or use requestAnimationFrame pattern.",
+    "PERF 2 - Editor.tsx handleMouseMove: Every mouse move during selection triggers getElementsInSelection which iterates all elements. Use spatial indexing or at minimum early-exit for empty selections.",
+    "TYPE SAFETY 1 - canvasStore.ts addElement uses Omit<CanvasElement, 'id' | 'seed'> but the Editor passes extra properties like 'text', 'fontSize', 'points' which only exist on certain element types. Create discriminated union types for CanvasElement creation.",
+    "TYPE SAFETY 2 - The canvasStore uses 'any' type for roughjs options and dbUpdates in useScenes. Replace with proper types.",
+    "CODE QUALITY 1 - Editor.tsx is 2500+ lines. Extract reusable logic into custom hooks: useCanvasDrawing, useCanvasInteraction, useKeyboardShortcuts, useExport. Keep the component focused on rendering.",
+    "CODE QUALITY 2 - Dashboard.tsx has inline event handler functions that create new closures on every render. Extract stable handler references with useCallback for performance.",
+    "CODE QUALITY 3 - Add proper aria-labels and roles to interactive elements: toolbar buttons, color pickers, scene cards for accessibility.",
+    "CODE QUALITY 4 - The useScenes and useFolders hooks duplicate the same error handling pattern. Extract a shared useSupabaseQuery pattern or utility."
+  ],
+  "acceptance_criteria": [
+    "TypeScript compiles without errors",
+    "Editor component is split into smaller, more maintainable pieces",
+    "No 'any' types remain in core logic",
+    "Toolbar buttons have proper aria-labels",
+    "Canvas drawing performance is improved (fewer draw calls for grid)"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit and confirm no type errors",
+    "Run npx vitest run and confirm all tests pass"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
