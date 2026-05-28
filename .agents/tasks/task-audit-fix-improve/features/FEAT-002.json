@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "fix",
   "description": "Fix bugs, memory leaks, race conditions, and logic errors found during codebase audit",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "BUG 1 - Memory leak in rateLimiter.ts: The setInterval in the RateLimiter constructor runs forever and is never cleaned up. Since these are module-level singletons this is acceptable for now but add a destroy() method. More critically, fix the fact that the rate limiter is client-side only and provides no real security - add a comment noting this limitation.",
     "BUG 2 - Memory leak in useAutoSave.ts: The useEffect cleanup that fires on unmount captures stale `data` and `onSave` references because the dependency array is empty. Fix by using refs for the latest data/callbacks.",

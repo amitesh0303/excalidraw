@@ -12,7 +12,9 @@ export interface UseAutoSaveOptions {
 }
 
 /**
- * Auto-save hook that debounces saves and detects changes
+ * Auto-save hook that debounces saves and detects changes.
+ * Uses refs for latest data/callbacks to avoid stale closures on unmount.
+ * Queues pending data when a save is already in progress.
  */
 export function useAutoSave<T>(
   data: T,
@@ -23,6 +25,17 @@ export function useAutoSave<T>(
   const previousDataRef = useRef<string>()
   const timeoutRef = useRef<NodeJS.Timeout>()
   const isSavingRef = useRef(false)
+  const pendingDataRef = useRef<T | null>(null)
+
+  // Keep refs to latest values so unmount cleanup never has stale data
+  const dataRef = useRef<T>(data)
+  dataRef.current = data
+
+  const onSaveRef = useRef(onSave)
+  onSaveRef.current = onSave
+
+  const onErrorRef = useRef(onError)
+  onErrorRef.current = onError
 
   const save = useCallback(async (currentData: T) => {
     const serialized = JSON.stringify(currentData)
@@ -32,22 +45,31 @@ export function useAutoSave<T>(
       return
     }
 
-    // Skip if already saving
+    // If already saving, queue the latest data for retry after current save completes
     if (isSavingRef.current) {
+      pendingDataRef.current = currentData
       return
     }
 
     try {
       isSavingRef.current = true
-      await onSave(currentData)
+      await onSaveRef.current(currentData)
       previousDataRef.current = serialized
     } catch (error) {
       console.error('Auto-save failed:', error)
-      onError?.(error as Error)
+      onErrorRef.current?.(error as Error)
     } finally {
       isSavingRef.current = false
+
+      // If there is pending data queued during the save, retry now
+      const pending = pendingDataRef.current
+      if (pending !== null) {
+        pendingDataRef.current = null
+        // Use setTimeout(0) to avoid deep recursion
+        setTimeout(() => save(pending), 0)
+      }
     }
-  }, [onSave, onError])
+  }, [])
 
   useEffect(() => {
     // Clear existing timeout
@@ -68,18 +90,19 @@ export function useAutoSave<T>(
     }
   }, [data, delay, save])
 
-  // Save immediately on unmount
+  // Save immediately on unmount using refs for current values
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
-      // Force immediate save on unmount
-      const serialized = JSON.stringify(data)
+      // Force immediate save on unmount using the latest data from ref
+      const currentData = dataRef.current
+      const serialized = JSON.stringify(currentData)
       if (serialized !== previousDataRef.current && !isSavingRef.current) {
-        onSave(data).catch(error => {
+        onSaveRef.current(currentData).catch(error => {
           console.error('Final save failed:', error)
-          onError?.(error as Error)
+          onErrorRef.current?.(error as Error)
         })
       }
     }
@@ -87,6 +110,6 @@ export function useAutoSave<T>(
 
   return {
     isSaving: isSavingRef.current,
-    forceSave: () => save(data)
+    forceSave: () => save(dataRef.current)
   }
 }

@@ -1,18 +1,47 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../types/database'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Validate Supabase configuration
-if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase environment variables. Please check your .env.local file.')
+let _supabase: SupabaseClient<Database> | null = null
+
+/**
+ * Get the Supabase client instance (lazy initialization).
+ * Only throws when the client is actually used, not on module import.
+ * This prevents the app from crashing during tests or SSR when env vars are not set.
+ */
+function getSupabaseClient(): SupabaseClient<Database> {
+    if (_supabase) return _supabase
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error(
+            'Missing Supabase environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY). ' +
+            'Please check your .env.local file.'
+        )
+    }
+
+    _supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+        auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+        }
+    })
+
+    return _supabase
 }
 
-// Create Supabase client
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-        persistSession: true,
-        autoRefreshToken: true,
+/**
+ * Supabase client - lazily initialized on first access.
+ * Throws if environment variables are missing only when actually used.
+ */
+export const supabase: SupabaseClient<Database> = new Proxy({} as SupabaseClient<Database>, {
+    get(_target, prop) {
+        const client = getSupabaseClient()
+        const value = (client as any)[prop]
+        if (typeof value === 'function') {
+            return value.bind(client)
+        }
+        return value
     }
 })

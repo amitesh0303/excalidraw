@@ -102,19 +102,19 @@ const ToolIcons: Record<Tool, React.ReactNode> = {
 
 // Tool definitions
 const TOOLS: { id: Tool; label: string; shortcut: string }[] = [
-    { id: 'select', label: 'Selection', shortcut: 'Ctrl+1' },
-    { id: 'hand', label: 'Hand (Pan)', shortcut: 'Ctrl+H' },
-    { id: 'rectangle', label: 'Rectangle', shortcut: 'Ctrl+R' },
-    { id: 'ellipse', label: 'Ellipse', shortcut: 'Ctrl+O' },
-    { id: 'diamond', label: 'Diamond', shortcut: 'Ctrl+D' },
-    { id: 'line', label: 'Line', shortcut: 'Ctrl+L' },
-    { id: 'arrow', label: 'Arrow', shortcut: 'Ctrl+A' },
-    { id: 'freedraw', label: 'Pencil', shortcut: 'Ctrl+P' },
-    { id: 'text', label: 'Text', shortcut: 'Ctrl+T' },
-    { id: 'eraser', label: 'Eraser', shortcut: 'Ctrl+E' },
-    { id: 'frame', label: 'Frame', shortcut: 'Ctrl+F' },
-    { id: 'webembed', label: 'Web Embed', shortcut: 'Ctrl+W' },
-    { id: 'laser', label: 'Laser Pointer', shortcut: 'Ctrl+.' },
+    { id: 'select', label: 'Selection', shortcut: 'V' },
+    { id: 'hand', label: 'Hand (Pan)', shortcut: 'H' },
+    { id: 'rectangle', label: 'Rectangle', shortcut: 'R' },
+    { id: 'ellipse', label: 'Ellipse', shortcut: 'O' },
+    { id: 'diamond', label: 'Diamond', shortcut: 'D' },
+    { id: 'line', label: 'Line', shortcut: 'L' },
+    { id: 'arrow', label: 'Arrow', shortcut: 'A' },
+    { id: 'freedraw', label: 'Pencil', shortcut: 'P' },
+    { id: 'text', label: 'Text', shortcut: 'T' },
+    { id: 'eraser', label: 'Eraser', shortcut: 'E' },
+    { id: 'frame', label: 'Frame', shortcut: 'F' },
+    { id: 'webembed', label: 'Web Embed', shortcut: 'W' },
+    { id: 'laser', label: 'Laser Pointer', shortcut: '.' },
 ]
 
 // Extended color palette
@@ -140,6 +140,7 @@ export default function Editor() {
     const containerRef = useRef<HTMLDivElement>(null)
     const imageInputRef = useRef<HTMLInputElement>(null)
     const textInputRef = useRef<HTMLTextAreaElement>(null)
+    const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map())
 
     // Scene management
     const { getScene, updateScene, deleteScene } = useScenes()
@@ -325,87 +326,168 @@ export default function Editor() {
                 e.preventDefault()
             }
 
-            // Tool shortcuts (Ctrl + key to avoid conflicts while typing)
-            if (e.ctrlKey || e.metaKey) {
-                const shortcuts: Record<string, Tool> = {
-                    v: 'select', '1': 'select',
-                    r: 'rectangle', '2': 'rectangle',
-                    o: 'ellipse', '3': 'ellipse',
-                    d: 'diamond', '4': 'diamond',
-                    l: 'line', '5': 'line',
-                    a: 'arrow', '6': 'arrow',
-                    p: 'freedraw', '7': 'freedraw',
-                    t: 'text', '8': 'text',
-                    e: 'eraser', '9': 'eraser',
+            // Single-key tool shortcuts (only when no modifier keys are held)
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                const toolShortcuts: Record<string, Tool> = {
+                    v: 'select',
+                    h: 'hand',
+                    r: 'rectangle',
+                    o: 'ellipse',
+                    d: 'diamond',
+                    l: 'line',
+                    a: 'arrow',
+                    p: 'freedraw',
+                    t: 'text',
+                    e: 'eraser',
+                    f: 'frame',
                     w: 'webembed',
                     '.': 'laser',
                 }
-                const tool = shortcuts[e.key.toLowerCase()]
+                const tool = toolShortcuts[e.key.toLowerCase()]
                 if (tool) {
                     e.preventDefault()
                     setTool(tool)
+                    return
+                }
+
+                // Number key shortcuts for tools (1-9)
+                const numberShortcuts: Record<string, Tool> = {
+                    '1': 'select',
+                    '2': 'rectangle',
+                    '3': 'ellipse',
+                    '4': 'diamond',
+                    '5': 'line',
+                    '6': 'arrow',
+                    '7': 'freedraw',
+                    '8': 'text',
+                    '9': 'eraser',
+                }
+                const numTool = numberShortcuts[e.key]
+                if (numTool) {
+                    e.preventDefault()
+                    setTool(numTool)
+                    return
                 }
             }
 
-            // Undo/Redo
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-                e.preventDefault()
-                if (e.shiftKey) redo()
-                else undo()
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-                e.preventDefault()
-                redo()
-            }
+            // Ctrl/Cmd shortcuts
+            if (e.ctrlKey || e.metaKey) {
+                // Undo/Redo
+                if (e.key === 'z') {
+                    e.preventDefault()
+                    if (e.shiftKey) redo()
+                    else undo()
+                    return
+                }
+                if (e.key === 'y') {
+                    e.preventDefault()
+                    redo()
+                    return
+                }
 
-            // Copy/Cut/Paste/Duplicate
-            if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !e.shiftKey) {
-                e.preventDefault()
-                copySelected()
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
-                e.preventDefault()
-                cutSelected()
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'v' && !e.shiftKey) {
-                e.preventDefault()
-                pasteClipboard()
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
-                e.preventDefault()
-                duplicateSelected()
-            }
+                // Copy/Cut/Paste/Duplicate
+                if (e.key === 'c' && !e.shiftKey) {
+                    e.preventDefault()
+                    copySelected()
+                    return
+                }
+                if (e.key === 'x') {
+                    e.preventDefault()
+                    cutSelected()
+                    return
+                }
+                if (e.key === 'v' && !e.shiftKey) {
+                    e.preventDefault()
+                    pasteClipboard()
+                    return
+                }
+                if (e.key === 'd') {
+                    e.preventDefault()
+                    duplicateSelected()
+                    return
+                }
 
-            // Layer ordering
-            if ((e.ctrlKey || e.metaKey) && e.key === ']') {
-                e.preventDefault()
-                if (e.shiftKey) bringToFront(selectedElementIds)
-                else bringForward(selectedElementIds)
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === '[') {
-                e.preventDefault()
-                if (e.shiftKey) sendToBack(selectedElementIds)
-                else sendBackward(selectedElementIds)
-            }
+                // Layer ordering
+                if (e.key === ']') {
+                    e.preventDefault()
+                    const state = useCanvasStore.getState()
+                    if (e.shiftKey) bringToFront(state.selectedElementIds)
+                    else bringForward(state.selectedElementIds)
+                    return
+                }
+                if (e.key === '[') {
+                    e.preventDefault()
+                    const state = useCanvasStore.getState()
+                    if (e.shiftKey) sendToBack(state.selectedElementIds)
+                    else sendBackward(state.selectedElementIds)
+                    return
+                }
 
-            // Group/Ungroup
-            if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
-                e.preventDefault()
-                if (e.shiftKey) ungroupSelected()
-                else groupSelected()
+                // Group/Ungroup
+                if (e.key === 'g') {
+                    e.preventDefault()
+                    if (e.shiftKey) ungroupSelected()
+                    else groupSelected()
+                    return
+                }
+
+                // Reset zoom
+                if (e.key === '0') {
+                    e.preventDefault()
+                    setZoom(1)
+                    setScroll(0, 0)
+                    return
+                }
+
+                // Find on Canvas (Ctrl+F)
+                if (e.key === 'f') {
+                    e.preventDefault()
+                    setFindDialog(true)
+                    return
+                }
+
+                // Command Palette (Ctrl+/ or Ctrl+Shift+P)
+                if (e.key === '/' || (e.shiftKey && e.key === 'p')) {
+                    e.preventDefault()
+                    setCommandPalette(true)
+                    return
+                }
+
+                // Add Link (Ctrl+L)
+                if (e.key === 'l' && !e.shiftKey) {
+                    e.preventDefault()
+                    const state = useCanvasStore.getState()
+                    if (state.selectedElementIds.length > 0) {
+                        const element = state.elements.find(el => el.id === state.selectedElementIds[0])
+                        if (element) {
+                            setLinkDialog({ x: 0, y: 0, url: element.link || '', elementId: element.id })
+                        }
+                    }
+                    return
+                }
+
+                // Lasso Selection (Ctrl+Shift+L)
+                if (e.shiftKey && e.key === 'l') {
+                    e.preventDefault()
+                    setLassoMode(!lassoMode)
+                    if (lassoMode) setLassoPoints([])
+                    return
+                }
             }
 
             // Delete
-            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementIds.length > 0) {
-                e.preventDefault()
-                // Also delete any text elements bound to the deleted containers
-                const idsToDelete = [...selectedElementIds]
-                selectedElementIds.forEach(id => {
-                    const boundTexts = elements.filter(e => e.containerId === id)
-                    boundTexts.forEach(textEl => idsToDelete.push(textEl.id))
-                })
-                deleteElements(idsToDelete)
-                saveToHistory()
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                const state = useCanvasStore.getState()
+                if (state.selectedElementIds.length > 0) {
+                    e.preventDefault()
+                    const idsToDelete = [...state.selectedElementIds]
+                    state.selectedElementIds.forEach(id => {
+                        const boundTexts = state.elements.filter(el => el.containerId === id)
+                        boundTexts.forEach(textEl => idsToDelete.push(textEl.id))
+                    })
+                    deleteElements(idsToDelete)
+                    saveToHistory()
+                }
             }
 
             // Escape
@@ -414,41 +496,6 @@ export default function Editor() {
                 setTool('select')
                 setShowMenu(false)
                 setContextMenu(null)
-            }
-
-            // Reset zoom
-            if ((e.ctrlKey || e.metaKey) && e.key === '0') {
-                e.preventDefault()
-                setZoom(1)
-                setScroll(0, 0)
-            }
-
-            // Find on Canvas (Ctrl+F)
-            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-                e.preventDefault()
-                setFindDialog(true)
-            }
-
-            // Command Palette (Ctrl+/)
-            if ((e.ctrlKey || e.metaKey) && (e.key === '/' || (e.shiftKey && e.key === 'p'))) {
-                e.preventDefault()
-                setCommandPalette(true)
-            }
-
-            // Add Link (Ctrl+L)
-            if ((e.ctrlKey || e.metaKey) && e.key === 'l' && selectedElementIds.length > 0 && !e.shiftKey) {
-                e.preventDefault()
-                const element = elements.find(el => el.id === selectedElementIds[0])
-                if (element) {
-                    setLinkDialog({ x: 0, y: 0, url: element.link || '', elementId: element.id })
-                }
-            }
-
-            // Lasso Selection (Shift+L but not same as group)
-            if (e.shiftKey && e.key === 'l' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault()
-                setLassoMode(!lassoMode)
-                if (lassoMode) setLassoPoints([])
             }
         }
 
@@ -464,7 +511,7 @@ export default function Editor() {
             window.removeEventListener('keydown', handleKeyDown)
             window.removeEventListener('keyup', handleKeyUp)
         }
-    }, [selectedElementIds])
+    }, [lassoMode])
 
     // Draw canvas
     const draw = useCallback(() => {
@@ -656,11 +703,21 @@ export default function Editor() {
                 }
                 case 'image':
                     if (element.imageData) {
-                        const img = new Image()
-                        img.onload = () => {
+                        const cache = imageCacheRef.current
+                        let img = cache.get(element.imageData)
+                        if (!img) {
+                            img = new Image()
+                            img.onload = () => {
+                                // Trigger a redraw once the image is loaded
+                                draw()
+                            }
+                            img.src = element.imageData
+                            cache.set(element.imageData, img)
+                        }
+                        // Only draw if the image has finished loading
+                        if (img.complete && img.naturalWidth > 0) {
                             ctx.drawImage(img, element.x, element.y, element.width, element.height)
                         }
-                        img.src = element.imageData
                     }
                     break
                 case 'frame':
@@ -1488,6 +1545,15 @@ export default function Editor() {
     }
 
     const handleExportSVG = () => {
+        const escapeXml = (str: string): string => {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;')
+        }
+
         let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" style="background:${canvasBg}">`
 
         elements.forEach((el) => {
@@ -1505,7 +1571,7 @@ export default function Editor() {
                     svg += `<line x1="${el.x}" y1="${el.y}" x2="${el.x + el.width}" y2="${el.y + el.height}" ${style}/>`
                     break
                 case 'text':
-                    svg += `<text x="${el.x}" y="${el.y + 20}" fill="${el.strokeColor}" font-size="${el.fontSize || 20}">${el.text}</text>`
+                    svg += `<text x="${el.x}" y="${el.y + 20}" fill="${el.strokeColor}" font-size="${el.fontSize || 20}">${escapeXml(el.text || '')}</text>`
                     break
             }
         })
@@ -1515,8 +1581,10 @@ export default function Editor() {
         const blob = new Blob([svg], { type: 'image/svg+xml' })
         const link = document.createElement('a')
         link.download = `${sceneName}.svg`
-        link.href = URL.createObjectURL(blob)
+        const url = URL.createObjectURL(blob)
+        link.href = url
         link.click()
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
     }
 
     const handleExportJSON = () => {
@@ -1524,8 +1592,10 @@ export default function Editor() {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
         const link = document.createElement('a')
         link.download = `${sceneName}.json`
-        link.href = URL.createObjectURL(blob)
+        const url = URL.createObjectURL(blob)
+        link.href = url
         link.click()
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
     }
 
     const handleSaveName = () => {
@@ -1671,8 +1741,10 @@ export default function Editor() {
                                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
                                 const link = document.createElement('a')
                                 link.download = `${sceneName}.json`
-                                link.href = URL.createObjectURL(blob)
+                                const url = URL.createObjectURL(blob)
+                                link.href = url
                                 link.click()
+                                setTimeout(() => URL.revokeObjectURL(url), 1000)
                                 setShowMenu(false)
                             }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1716,7 +1788,7 @@ export default function Editor() {
                             </button>
                             <div className="dropdown-divider" />
                             <button className="dropdown-item" onClick={() => {
-                                alert('📋 Keyboard Shortcuts\n\nTools:\nCtrl+1: Select | Ctrl+2: Rectangle | Ctrl+3: Ellipse\nCtrl+4: Diamond | Ctrl+5: Line | Ctrl+6: Arrow\nCtrl+7: Pencil | Ctrl+8: Text | Ctrl+9: Eraser | Ctrl+O: Image\n\nEditing:\nCtrl+Z: Undo | Ctrl+Y: Redo\nCtrl+C: Copy | Ctrl+X: Cut | Ctrl+V: Paste | Ctrl+D: Duplicate\nCtrl+G: Group | Delete: Delete | Esc: Deselect\n\nLayers:\nCtrl+]: Bring Forward | Ctrl+[: Send Backward\nCtrl+Shift+]: Bring to Front | Ctrl+Shift+[: Send to Back\n\nOther:\nCtrl+F: Find | Ctrl+/: Command Palette\nSpace: Pan | Ctrl+L: Add Link\nCtrl+Shift+L: Lasso Select')
+                                alert('Keyboard Shortcuts\n\nTools:\nV: Select | R: Rectangle | O: Ellipse\nD: Diamond | L: Line | A: Arrow\nP: Pencil | T: Text | E: Eraser\nH: Hand | F: Frame | W: Web Embed\n\nEditing:\nCtrl+Z: Undo | Ctrl+Y: Redo\nCtrl+C: Copy | Ctrl+X: Cut | Ctrl+V: Paste | Ctrl+D: Duplicate\nCtrl+G: Group | Delete: Delete | Esc: Deselect\n\nLayers:\nCtrl+]: Bring Forward | Ctrl+[: Send Backward\nCtrl+Shift+]: Bring to Front | Ctrl+Shift+[: Send to Back\n\nOther:\nCtrl+F: Find | Ctrl+/: Command Palette\nSpace: Pan | Ctrl+L: Add Link\nCtrl+Shift+L: Lasso Select')
                                 setShowMenu(false)
                             }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

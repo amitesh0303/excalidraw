@@ -6,8 +6,8 @@ import { useFolders } from '../hooks/useFolders'
 
 export default function Dashboard() {
     const { user, signOut } = useAuth()
-    const { scenes, loading: scenesLoading, createScene, deleteScene, updateScene } = useScenes()
-    const { folders, createFolder, renameFolder, deleteFolder } = useFolders()
+    const { scenes, loading: scenesLoading, error: scenesError, createScene, deleteScene, updateScene } = useScenes()
+    const { folders, error: foldersError, createFolder, renameFolder, deleteFolder } = useFolders()
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
     const [darkMode, setDarkMode] = useState(true)
@@ -121,7 +121,7 @@ export default function Dashboard() {
 
     const filteredScenes = selectedFolder
         ? scenes.filter((s) => s.folder_id === selectedFolder)
-        : scenes.filter((s) => !s.folder_id)
+        : scenes
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr)
@@ -132,8 +132,31 @@ export default function Dashboard() {
         })
     }
 
+    // Combine errors from hooks
+    const dashboardError = scenesError || foldersError
+
     return (
         <div className={`dashboard ${darkMode ? 'dark' : 'light'}`}>
+            {/* Error Banner */}
+            {dashboardError && (
+                <div style={{
+                    position: 'fixed',
+                    top: '16px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 1000,
+                    background: '#dc3545',
+                    color: '#fff',
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    fontSize: '0.875rem',
+                    maxWidth: '500px',
+                    textAlign: 'center',
+                }}>
+                    {dashboardError}
+                </div>
+            )}
             {/* Sidebar */}
             <aside className="dashboard-sidebar">
                 <div className="sidebar-header">
